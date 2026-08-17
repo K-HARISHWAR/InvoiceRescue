@@ -1,0 +1,1 @@
+export default function ActionCenter() { return <div>Action Center</div> }
