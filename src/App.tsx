@@ -3,10 +3,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 
 import AppLayout from '@/components/layout/AppLayout'
+import ProtectedRoute from '@/components/layout/ProtectedRoute'
+import { SessionProvider } from '@/contexts/SessionContext'
 
 // Auth & Public
 import Login from '@/features/auth/Login'
 import Signup from '@/features/auth/Signup'
+import ForgotPassword from '@/features/auth/ForgotPassword'
+import ResetPassword from '@/features/auth/ResetPassword'
 import Onboarding from '@/features/onboarding/Onboarding'
 
 // Protected Dashboard
@@ -24,28 +28,39 @@ const queryClient = new QueryClient()
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/onboarding" element={<Onboarding />} />
-          
-          <Route path="/app" element={<AppLayout />}>
-            <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="invoices" element={<InvoiceList />} />
-            <Route path="invoices/:invoiceId" element={<InvoiceDetail />} />
-            <Route path="customers" element={<CustomerList />} />
-            <Route path="customers/:customerId" element={<CustomerDetail />} />
-            <Route path="actions" element={<ActionCenter />} />
-            <Route path="recovery" element={<Recovery />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
+      <SessionProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            
+            {/* Onboarding is protected but doesn't require a business */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/onboarding" element={<Onboarding />} />
+            </Route>
 
-          <Route path="*" element={<Navigate to="/app/dashboard" replace />} />
-        </Routes>
-      </BrowserRouter>
-      <Toaster position="top-right" richColors />
+            {/* App is protected and requires a business */}
+            <Route path="/app" element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="invoices" element={<InvoiceList />} />
+                <Route path="invoices/:invoiceId" element={<InvoiceDetail />} />
+                <Route path="customers" element={<CustomerList />} />
+                <Route path="customers/:customerId" element={<CustomerDetail />} />
+                <Route path="actions" element={<ActionCenter />} />
+                <Route path="recovery" element={<Recovery />} />
+                <Route path="settings" element={<Settings />} />
+              </Route>
+            </Route>
+
+            <Route path="*" element={<Navigate to="/app/dashboard" replace />} />
+          </Routes>
+        </BrowserRouter>
+        <Toaster position="top-right" richColors />
+      </SessionProvider>
     </QueryClientProvider>
   )
 }

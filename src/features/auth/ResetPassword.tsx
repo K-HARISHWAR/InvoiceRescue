@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -11,59 +11,57 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
+const resetPasswordSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string()
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
 });
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
-export default function Login() {
+export default function ResetPassword() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
 
-  const from = location.state?.from?.pathname || '/app/dashboard';
+  useEffect(() => {
+    // Check if we actually have a session to reset the password for
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        toast.error('Invalid or expired password reset link.');
+        navigate('/login', { replace: true });
+      }
+    });
+  }, [navigate]);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
+  } = useForm<ResetPasswordFormValues>({
+    resolver: zodResolver(resetPasswordSchema),
     defaultValues: {
-      email: '',
       password: '',
+      confirmPassword: '',
     },
   });
 
-  const getErrorMessage = (error: any) => {
-    const msg = error?.message?.toLowerCase() || '';
-    if (msg.includes('invalid login credentials')) {
-      return 'Invalid email or password.';
-    }
-    if (msg.includes('email not confirmed')) {
-      return 'Please verify your email address before logging in.';
-    }
-    return 'An unexpected error occurred. Please try again.';
-  };
-
-  const onSubmit = async (data: LoginFormValues) => {
+  const onSubmit = async (data: ResetPasswordFormValues) => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: data.email,
+      const { error } = await supabase.auth.updateUser({
         password: data.password,
       });
 
       if (error) {
-        toast.error(getErrorMessage(error));
+        toast.error('An error occurred while updating your password.');
         return;
       }
 
-      toast.success('Successfully logged in');
-      navigate(from, { replace: true });
+      toast.success('Password updated successfully!');
+      navigate('/app/dashboard', { replace: true });
     } catch (err) {
       toast.error('An unexpected error occurred. Please try again.');
     } finally {
@@ -79,46 +77,23 @@ export default function Login() {
             <Building2 className="h-6 w-6 text-white" />
           </div>
           <h2 className="mt-6 text-3xl font-extrabold text-neutral-900">
-            Sign in to InvoiceRescue
+            Set new password
           </h2>
           <p className="mt-2 text-sm text-neutral-600">
-            Stop chasing invoices. Start getting paid.
+            Please enter your new password below.
           </p>
         </div>
         
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-neutral-100">
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
+            
             <div>
-              <Label htmlFor="email">Email address</Label>
-              <div className="mt-1">
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@company.com"
-                  disabled={isLoading}
-                  {...register('email')}
-                />
-                {errors.email && (
-                  <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <div className="text-sm">
-                  <Link to="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
-                    Forgot your password?
-                  </Link>
-                </div>
-              </div>
+              <Label htmlFor="password">New password</Label>
               <div className="mt-1 relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   placeholder="••••••••"
                   disabled={isLoading}
                   {...register('password')}
@@ -141,39 +116,35 @@ export default function Login() {
             </div>
 
             <div>
+              <Label htmlFor="confirmPassword">Confirm new password</Label>
+              <div className="mt-1 relative">
+                <Input
+                  id="confirmPassword"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                  disabled={isLoading}
+                  {...register('confirmPassword')}
+                />
+              </div>
+              {errors.confirmPassword && (
+                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword.message}</p>
+              )}
+            </div>
+
+            <div>
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing in...
+                    Updating password...
                   </>
                 ) : (
-                  'Sign in'
+                  'Update password'
                 )}
               </Button>
             </div>
           </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-neutral-200" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-neutral-500">
-                  Don't have an account?
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <Link to="/signup">
-                <Button variant="outline" className="w-full">
-                  Create an account
-                </Button>
-              </Link>
-            </div>
-          </div>
         </div>
       </div>
     </div>
