@@ -4,9 +4,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Calendar, UploadCloud, FileText, ArrowLeft, Loader2 } from 'lucide-react';
+import { Calendar, UploadCloud, FileText, ArrowLeft, Loader2, AlertTriangle } from 'lucide-react';
 import { addDays, format, parseISO } from 'date-fns';
 
+import { supabase } from '@/lib/supabase/client';
+import { useSession } from '@/hooks/useSession';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useInvoices } from '@/hooks/useInvoices';
 import PageHeader from '@/components/common/PageHeader';
@@ -35,11 +37,16 @@ export default function InvoiceForm() {
   const [searchParams] = useSearchParams();
   const preselectedCustomer = searchParams.get('customer');
   const [mode, setMode] = useState<'manual' | 'upload'>('upload');
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [pendingDocument, setPendingDocument] = useState<any>(null);
+  const [extractionWarnings, setExtractionWarnings] = useState<string[]>([]);
+  const [lowConfidenceFields, setLowConfidenceFields] = useState<Record<string, number>>({});
   
+  const { business, user } = useSession();
   const { customers, isLoading: isLoadingCustomers } = useCustomers();
-  const { createInvoice } = useInvoices();
+  const { createInvoice, updateInvoice } = useInvoices();
 
-  const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<InvoiceFormValues>({
+  const { register, handleSubmit, watch, setValue, reset, formState: { errors, isSubmitting } } = useForm<InvoiceFormValues>({
     resolver: zodResolver(invoiceSchema),
     defaultValues: {
       customer_id: preselectedCustomer || '',
@@ -73,10 +80,48 @@ export default function InvoiceForm() {
     }
   }, [watchInvoiceDate, watchPaymentTerms, setValue]);
 
-  // Auto-calculate total
-  useEffect(() => {
-    setValue('total_amount', (Number(watchSubtotal) || 0) + (Number(watchTax) || 0));
-  }, [watchSubtotal, watchTax, setValue]);
+  const handleExtractionComplete = (data: any | null, draftInvoiceId?: string, documentDetails?: any) => {
+    if (draftInvoiceId) setDraftId(draftInvoiceId);
+    if (documentDetails) setPendingDocument(documentDetails);
+    
+    setMode('manual');
+    if (!data) return; // if extraction failed, just switch to manual mode without populating
+    
+    // Auto-select customer if we can match the name
+    let matchedCustomerId = '';
+    if (data.customer_name) {
+      const match = customers.find(c => 
+        c.name.toLowerCase() === data.customer_name.toLowerCase() ||
+        c.company_name?.toLowerCase() === data.customer_name.toLowerCase()
+      );
+      if (match) {
+        matchedCustomerId = match.id;
+      }
+    }
+
+    reset({
+      customer_id: matchedCustomerId || '',
+      invoice_number: data.invoice_number || '',
+      invoice_date: data.invoice_date || format(new Date(), 'yyyy-MM-dd'),
+      payment_terms_days: data.payment_terms_days || 30,
+      due_date: data.due_date || format(addDays(new Date(), 30), 'yyyy-MM-dd'),
+      currency: data.currency || 'INR',
+      subtotal: data.subtotal || 0,
+      tax_amount: data.tax_amount || 0,
+      total_amount: data.total_amount || 0,
+      notes: data.purchase_order ? `PO: ${data.purchase_order}` : '',
+    });
+
+    if (data.warnings?.length > 0) {
+      setExtractionWarnings(data.warnings);
+    }
+    
+    if (data.field_confidence) {
+      setLowConfidenceFields(data.field_confidence);
+    }
+
+    toast.success('Invoice data extracted. Please review the details.');
+  };
 
   const onSubmit = async (data: InvoiceFormValues) => {
     try {
@@ -93,12 +138,30 @@ export default function InvoiceForm() {
         amount_paid: 0,
         payment_status: 'open' as const,
         collection_stage: 'monitoring' as const,
-        source: 'manual',
+        source: draftId ? 'upload' : 'manual',
       };
 
-      const result = await createInvoice.mutateAsync(invoiceRecord);
-      toast.success('Invoice created successfully');
-      navigate(`/app/invoices/${result.id}`);
+      let resultId;
+      if (draftId) {
+        await updateInvoice.mutateAsync({ id: draftId, updates: invoiceRecord });
+        resultId = draftId;
+      } else {
+        const result = await createInvoice.mutateAsync(invoiceRecord);
+        resultId = result.id;
+      }
+
+      if (pendingDocument && business && user) {
+        await supabase.from('invoice_documents').insert([{
+          business_id: business.id,
+          invoice_id: resultId,
+          document_type: 'invoice',
+          uploaded_by: user.id,
+          ...pendingDocument
+        }]);
+      }
+      
+      toast.success('Invoice saved successfully');
+      navigate(`/app/invoices/${resultId}`);
     } catch (error) {
       toast.error('Failed to create invoice');
       console.error(error);
@@ -141,16 +204,39 @@ export default function InvoiceForm() {
 
       {mode === 'upload' ? (
         <div className="bg-white p-6 shadow sm:rounded-lg border border-neutral-200">
-          <InvoiceUpload />
+          <InvoiceUpload onExtractionComplete={handleExtractionComplete} />
         </div>
       ) : (
         <div className="bg-white shadow sm:rounded-lg border border-neutral-200 overflow-hidden">
           <div className="px-4 py-5 sm:p-6">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               
+              {extractionWarnings.length > 0 && (
+                <div className="bg-amber-50 border-l-4 border-amber-400 p-4 mb-6">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <AlertTriangle className="h-5 w-5 text-amber-400" />
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-amber-700">
+                        The AI parser reported some warnings. Please verify:
+                      </p>
+                      <ul className="list-disc pl-5 mt-1 text-sm text-amber-700">
+                        {extractionWarnings.map((w, i) => <li key={i}>{w}</li>)}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
                 <div className="sm:col-span-3">
-                  <Label htmlFor="customer_id">Customer <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="customer_id">
+                    Customer <span className="text-red-500">*</span>
+                    {lowConfidenceFields.customer_name !== undefined && lowConfidenceFields.customer_name < 0.8 && (
+                      <AlertTriangle className="h-4 w-4 text-amber-500 inline ml-2" title="Low confidence extraction. Please verify." />
+                    )}
+                  </Label>
                   <div className="mt-1">
                     <select
                       id="customer_id"
@@ -168,7 +254,12 @@ export default function InvoiceForm() {
                 </div>
 
                 <div className="sm:col-span-3">
-                  <Label htmlFor="invoice_number">Invoice Number <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="invoice_number">
+                    Invoice Number <span className="text-red-500">*</span>
+                    {lowConfidenceFields.invoice_number !== undefined && lowConfidenceFields.invoice_number < 0.8 && (
+                      <AlertTriangle className="h-4 w-4 text-amber-500 inline ml-2" title="Low confidence extraction. Please verify." />
+                    )}
+                  </Label>
                   <div className="mt-1">
                     <Input id="invoice_number" {...register('invoice_number')} />
                     {errors.invoice_number && <p className="mt-1 text-sm text-red-600">{errors.invoice_number.message as string}</p>}
@@ -217,21 +308,21 @@ export default function InvoiceForm() {
                   <div className="sm:col-span-1">
                     <Label htmlFor="subtotal">Subtotal</Label>
                     <div className="mt-1">
-                      <Input id="subtotal" type="number" step="1" {...register('subtotal')} />
+                      <Input id="subtotal" type="number" step="0.01" {...register('subtotal')} />
                     </div>
                   </div>
 
                   <div className="sm:col-span-1">
                     <Label htmlFor="tax_amount">Tax Amount</Label>
                     <div className="mt-1">
-                      <Input id="tax_amount" type="number" step="1" {...register('tax_amount')} />
+                      <Input id="tax_amount" type="number" step="0.01" {...register('tax_amount')} />
                     </div>
                   </div>
 
                   <div className="sm:col-span-1">
                     <Label htmlFor="total_amount">Total Amount</Label>
                     <div className="mt-1">
-                      <Input id="total_amount" type="number" step="1" readOnly className="bg-neutral-50 font-medium" {...register('total_amount')} />
+                      <Input id="total_amount" type="number" step="0.01" readOnly className="bg-neutral-50 font-medium" {...register('total_amount')} />
                     </div>
                   </div>
                 </div>

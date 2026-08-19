@@ -1,5 +1,4 @@
-import React, { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { UploadCloud, File, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -9,15 +8,16 @@ import { useSession } from '@/hooks/useSession';
 import { Button } from '@/components/ui/button';
 
 interface InvoiceUploadProps {
-  invoiceId?: string; // If provided, attaches to this invoice. If not, creates a draft invoice first.
+  invoiceId?: string; // If provided, attaches to this invoice.
   onUploadSuccess?: () => void;
+  onExtractionComplete?: (data: any, targetInvoiceId?: string, documentDetails?: any) => void;
 }
 
-export default function InvoiceUpload({ invoiceId, onUploadSuccess }: InvoiceUploadProps) {
+export default function InvoiceUpload({ invoiceId, onUploadSuccess, onExtractionComplete }: InvoiceUploadProps) {
   const { business, user } = useSession();
-  const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -43,37 +43,11 @@ export default function InvoiceUpload({ invoiceId, onUploadSuccess }: InvoiceUpl
     try {
       let targetInvoiceId = invoiceId;
 
-      // 1. Create a draft invoice if we don't have one
-      if (!targetInvoiceId) {
-        const { data: newInvoice, error: invError } = await supabase
-          .from('invoices')
-          .insert([{
-            business_id: business.id,
-            invoice_number: `DRAFT-${Date.now()}`,
-            invoice_date: new Date().toISOString().split('T')[0],
-            currency: business.default_currency,
-            subtotal: 0,
-            tax_amount: 0,
-            total_amount: 0,
-            amount_paid: 0,
-            outstanding_amount: 0,
-            payment_status: 'draft',
-            collection_stage: 'monitoring',
-            source: 'upload',
-            created_by: user.id
-          }])
-          .select()
-          .single();
-
-        if (invError) throw new Error(`Failed to create draft invoice: ${invError.message}`);
-        targetInvoiceId = newInvoice.id;
-      }
-
-      // 2. Upload to Storage
-      // Path convention: {business_id}/{invoice_id}/{uuid}-{filename}
-      const fileExt = file.name.split('.').pop();
+      // 1. Upload to Storage
+      // Path convention: {business_id}/{invoice_id_or_temp}/{uuid}-{filename}
       const uuid = crypto.randomUUID();
-      const filePath = `${business.id}/${targetInvoiceId}/${uuid}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const folderId = targetInvoiceId || `temp-${uuid}`;
+      const filePath = `${business.id}/${folderId}/${uuid}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
 
       const { error: uploadError } = await supabase.storage
         .from('invoice-documents')
@@ -81,39 +55,60 @@ export default function InvoiceUpload({ invoiceId, onUploadSuccess }: InvoiceUpl
 
       if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
 
-      // 3. Create invoice_documents record
-      // Hash calculation (simplified for MVP, ideally use Web Crypto API)
+      // 2. Hash calculation
       const buffer = await file.arrayBuffer();
       const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-      const { error: docError } = await supabase
-        .from('invoice_documents')
-        .insert([{
-          business_id: business.id,
-          invoice_id: targetInvoiceId,
-          document_type: 'invoice',
-          storage_path: filePath,
-          original_file_name: file.name,
-          mime_type: file.type,
-          size_bytes: file.size,
-          sha256: hashHex,
-          uploaded_by: user.id
-        }]);
+      const documentDetails = {
+        storage_path: filePath,
+        original_file_name: file.name,
+        mime_type: file.type,
+        size_bytes: file.size,
+        sha256: hashHex,
+      };
 
-      if (docError) throw new Error(`Failed to link document: ${docError.message}`);
+      // 3. Create invoice_documents record ONLY if we have an invoice ID
+      if (targetInvoiceId) {
+        const { error: docError } = await supabase
+          .from('invoice_documents')
+          .insert([{
+            business_id: business.id,
+            invoice_id: targetInvoiceId,
+            document_type: 'invoice',
+            uploaded_by: user.id,
+            ...documentDetails
+          }]);
 
-      toast.success('Document uploaded successfully');
-      setFile(null);
-      
-      if (onUploadSuccess) {
-        onUploadSuccess();
+        if (docError) throw new Error(`Failed to link document: ${docError.message}`);
       }
 
-      // If we created a new draft invoice, redirect to it
-      if (!invoiceId && targetInvoiceId) {
-        navigate(`/app/invoices/${targetInvoiceId}`);
+      toast.success('Document uploaded successfully');
+      
+      if (onExtractionComplete) {
+        setIsProcessing(true);
+        try {
+          const { data: parseResponse, error: parseError } = await supabase.functions.invoke('parse-invoice', {
+            body: { storage_path: filePath, mime_type: file.type }
+          });
+          
+          if (parseError) throw parseError;
+          if (!parseResponse?.success) throw new Error(parseResponse?.error?.message || 'Parsing failed');
+
+          onExtractionComplete(parseResponse.data, targetInvoiceId, documentDetails);
+        } catch (err: any) {
+          console.error('Extraction error:', err);
+          toast.error(err.message || 'Failed to extract invoice data. You can enter details manually.');
+          // Still call onExtractionComplete with null data so the form switches to manual mode
+          onExtractionComplete(null, targetInvoiceId, documentDetails);
+        } finally {
+          setIsProcessing(false);
+          setFile(null);
+        }
+      } else {
+        setFile(null);
+        if (onUploadSuccess) onUploadSuccess();
       }
 
     } catch (error: any) {
@@ -171,11 +166,11 @@ export default function InvoiceUpload({ invoiceId, onUploadSuccess }: InvoiceUpl
           </div>
           
           <div className="mt-4 flex justify-end">
-            <Button onClick={uploadFile} disabled={isUploading} className="w-full sm:w-auto">
-              {isUploading ? (
+            <Button onClick={uploadFile} disabled={isUploading || isProcessing} className="w-full sm:w-auto">
+              {isUploading || isProcessing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Uploading...
+                  {isProcessing ? 'Extracting Data...' : 'Uploading...'}
                 </>
               ) : (
                 'Confirm Upload'
