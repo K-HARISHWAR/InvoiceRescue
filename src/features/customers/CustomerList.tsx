@@ -1,1 +1,192 @@
-export default function CustomerList() { return <div>Customer List</div> }
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Plus, Search, Building2, Mail } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { toast } from 'sonner';
+
+import { useCustomers } from '@/hooks/useCustomers';
+import PageHeader from '@/components/common/PageHeader';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+
+const customerSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  company_name: z.string().optional(),
+  primary_email: z.string().email('Valid email is required').optional().or(z.literal('')),
+  phone: z.string().optional(),
+  gstin: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+type CustomerFormValues = z.infer<typeof customerSchema>;
+
+export default function CustomerList() {
+  const { customers, isLoading, createCustomer } = useCustomers();
+  const [search, setSearch] = useState('');
+  const [isNewDialogOpen, setIsNewDialogOpen] = useState(false);
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CustomerFormValues>({
+    resolver: zodResolver(customerSchema),
+    defaultValues: { name: '', company_name: '', primary_email: '', phone: '', gstin: '', notes: '' }
+  });
+
+  const onSubmit = async (data: CustomerFormValues) => {
+    try {
+      await createCustomer.mutateAsync(data);
+      toast.success('Customer created successfully');
+      setIsNewDialogOpen(false);
+      reset();
+    } catch (error) {
+      toast.error('Failed to create customer');
+    }
+  };
+
+  const filteredCustomers = customers.filter(c => 
+    c.name.toLowerCase().includes(search.toLowerCase()) || 
+    (c.company_name && c.company_name.toLowerCase().includes(search.toLowerCase())) ||
+    (c.primary_email && c.primary_email.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  return (
+    <div className="space-y-6">
+      <PageHeader 
+        title="Customers" 
+        description="Manage your clients and view their performance."
+        actions={
+          <Button onClick={() => setIsNewDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Customer
+          </Button>
+        }
+      />
+
+      <div className="flex items-center space-x-2 bg-white p-2 rounded-lg border border-neutral-200">
+        <Search className="h-5 w-5 text-neutral-400 ml-2" />
+        <Input 
+          placeholder="Search customers..." 
+          className="border-0 focus-visible:ring-0 shadow-none"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      <div className="bg-white rounded-lg border border-neutral-200 shadow-sm overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Customer</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead className="text-right">Open Invoices</TableHead>
+              <TableHead className="text-right">Outstanding</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center text-neutral-500">
+                  Loading customers...
+                </TableCell>
+              </TableRow>
+            ) : filteredCustomers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center text-neutral-500">
+                  No customers found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredCustomers.map((customer) => {
+                const invoices: any[] = (customer as any).invoices || [];
+                const openInvoices = invoices.filter(i => ['open', 'partial', 'disputed'].includes(i.payment_status));
+                const outstanding = openInvoices.reduce((sum, i) => sum + Number(i.outstanding_amount), 0);
+                // We'll use formatting soon, but just standard JS for now
+                const formattedOutstanding = new Intl.NumberFormat('en-IN', { style: 'currency', currency: invoices[0]?.currency || 'INR' }).format(outstanding);
+
+                return (
+                  <TableRow key={customer.id}>
+                    <TableCell className="font-medium">
+                      <Link to={`/app/customers/${customer.id}`} className="text-blue-600 hover:underline flex items-center">
+                        <Building2 className="mr-2 h-4 w-4 text-neutral-400" />
+                        {customer.name}
+                      </Link>
+                      {customer.company_name && (
+                        <div className="text-xs text-neutral-500 mt-0.5">{customer.company_name}</div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {customer.primary_email ? (
+                        <div className="flex items-center text-sm">
+                          <Mail className="mr-2 h-3 w-3 text-neutral-400" />
+                          {customer.primary_email}
+                        </div>
+                      ) : (
+                        <span className="text-neutral-400 text-xs italic">Not provided</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">{openInvoices.length}</TableCell>
+                    <TableCell className="text-right font-medium">{formattedOutstanding}</TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Dialog open={isNewDialogOpen} onOpenChange={setIsNewDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>New Customer</DialogTitle>
+            <DialogDescription>
+              Add a new customer to your workspace. You can add more details later.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="name">Display Name <span className="text-red-500">*</span></Label>
+              <Input id="name" {...register('name')} />
+              {errors.name && <p className="text-sm text-red-500 mt-1">{errors.name.message as string}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="company_name">Legal Company Name</Label>
+              <Input id="company_name" {...register('company_name')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="primary_email">Primary Email</Label>
+              <Input id="primary_email" type="email" {...register('primary_email')} />
+              {errors.primary_email && <p className="text-sm text-red-500 mt-1">{errors.primary_email.message as string}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input id="phone" {...register('phone')} />
+            </div>
+            <DialogFooter className="mt-6">
+              <Button type="button" variant="outline" onClick={() => setIsNewDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Creating...' : 'Create Customer'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

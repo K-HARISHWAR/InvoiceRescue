@@ -17,6 +17,7 @@ import Onboarding from '@/features/onboarding/Onboarding'
 import Dashboard from '@/features/dashboard/Dashboard'
 import InvoiceList from '@/features/invoices/InvoiceList'
 import InvoiceDetail from '@/features/invoices/InvoiceDetail'
+import InvoiceForm from '@/features/invoices/InvoiceForm'
 import CustomerList from '@/features/customers/CustomerList'
 import CustomerDetail from '@/features/customers/CustomerDetail'
 import ActionCenter from '@/features/collections/ActionCenter'
@@ -47,6 +48,7 @@ export default function App() {
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="invoices" element={<InvoiceList />} />
+                <Route path="invoices/new" element={<InvoiceForm />} />
                 <Route path="invoices/:invoiceId" element={<InvoiceDetail />} />
                 <Route path="customers" element={<CustomerList />} />
                 <Route path="customers/:customerId" element={<CustomerDetail />} />
