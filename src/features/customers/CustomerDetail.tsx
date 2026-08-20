@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Mail, Phone, Building2, Edit2, FileText, IndianRupee } from 'lucide-react';
+import { Mail, Phone, Building2, Edit2, FileText, IndianRupee, PieChart, Activity } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 
-import { useCustomer, useCustomers } from '@/hooks/useCustomers';
+import { useCustomer, useCustomers, useCustomerIntelligence } from '@/hooks/useCustomers';
 import PageHeader from '@/components/common/PageHeader';
 import MetricCard from '@/components/common/MetricCard';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -30,6 +30,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { MoneyDisplay } from '@/lib/formatting/MoneyDisplay';
+import { addDays, format } from 'date-fns';
 
 const customerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -45,6 +47,7 @@ type CustomerFormValues = z.infer<typeof customerSchema>;
 export default function CustomerDetail() {
   const { customerId } = useParams();
   const { data: customer, isLoading, isError } = useCustomer(customerId);
+  const { data: intel, isLoading: isIntelLoading } = useCustomerIntelligence(customerId);
   const { updateCustomer } = useCustomers();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
@@ -86,10 +89,6 @@ export default function CustomerDetail() {
   }
 
   const invoices = (customer as any).invoices || [];
-  const openInvoices = invoices.filter((i: any) => ['open', 'partial', 'disputed'].includes(i.payment_status));
-  const outstanding = openInvoices.reduce((sum: number, i: any) => sum + Number(i.outstanding_amount), 0);
-  const currency = invoices[0]?.currency || 'INR';
-  const formattedOutstanding = new Intl.NumberFormat('en-IN', { style: 'currency', currency }).format(outstanding);
 
   return (
     <div className="space-y-6">
@@ -145,18 +144,51 @@ export default function CustomerDetail() {
               </div>
             )}
           </div>
+          
+          <div className="bg-white rounded-lg border border-neutral-200 shadow-sm p-6">
+            <h3 className="text-lg font-medium text-neutral-900 mb-4">Customer Intelligence</h3>
+            {isIntelLoading ? (
+              <div className="text-sm text-muted-foreground">Loading metrics...</div>
+            ) : intel ? (
+              <div className="space-y-4">
+                 <div className="flex justify-between items-center border-b border-border pb-2">
+                   <span className="text-sm text-muted-foreground flex items-center gap-2"><PieChart size={14} /> Total Invoices</span>
+                   <span className="text-sm font-medium">{intel.totalInvoices}</span>
+                 </div>
+                 <div className="flex justify-between items-center border-b border-border pb-2">
+                   <span className="text-sm text-muted-foreground flex items-center gap-2"><IndianRupee size={14} /> Total Paid</span>
+                   <span className="text-sm font-medium"><MoneyDisplay amount={intel.totalPaid} /></span>
+                 </div>
+                 <div className="flex justify-between items-center border-b border-border pb-2">
+                   <span className="text-sm text-muted-foreground flex items-center gap-2"><Activity size={14} /> On-Time Rate</span>
+                   <span className="text-sm font-medium">{intel.onTimeRate.toFixed(1)}%</span>
+                 </div>
+                 <div className="flex justify-between items-center border-b border-border pb-2">
+                   <span className="text-sm text-muted-foreground">Average Days Late</span>
+                   <span className="text-sm font-medium">{intel.averageDaysLate} days</span>
+                 </div>
+                 <div className="flex justify-between items-center">
+                   <span className="text-sm text-muted-foreground">Missed Promises</span>
+                   <span className="text-sm font-medium">{intel.missedPromises}</span>
+                 </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">No metrics available.</div>
+            )}
+          </div>
         </div>
 
         <div className="col-span-1 md:col-span-2 space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <MetricCard 
               title="Outstanding Amount" 
-              value={formattedOutstanding} 
+              value={<MoneyDisplay amount={intel?.openBalance || 0} />} 
               icon={<IndianRupee className="h-4 w-4 text-blue-600" />} 
+              loading={isIntelLoading}
             />
             <MetricCard 
               title="Open Invoices" 
-              value={openInvoices.length.toString()} 
+              value={invoices.filter((i: any) => ['open', 'partial', 'disputed'].includes(i.payment_status)).length.toString()} 
               icon={<FileText className="h-4 w-4 text-blue-600" />} 
             />
           </div>
@@ -177,7 +209,7 @@ export default function CustomerDetail() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Invoice</TableHead>
-                    <TableHead>Issue Date</TableHead>
+                    <TableHead>Expected Payment</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Risk</TableHead>
@@ -186,17 +218,27 @@ export default function CustomerDetail() {
                 <TableBody>
                   {invoices.slice(0, 5).map((invoice: any) => {
                     const invAmount = new Intl.NumberFormat('en-IN', { style: 'currency', currency: invoice.currency }).format(invoice.total_amount);
+                    const expectedDate = invoice.due_date && intel ? format(addDays(new Date(invoice.due_date), intel.averageDaysLate), 'MMM d, yyyy') : 'N/A';
+                    
                     return (
                       <TableRow key={invoice.id}>
                         <TableCell className="font-medium">
-                          <Link to={`/app/invoices/${invoice.id}`} className="text-blue-600 hover:underline">
-                            {invoice.invoice_number || 'Draft'}
+                          <Link to={`/app/invoices/${invoice.id}`} className="text-blue-600 hover:underline flex flex-col">
+                            <span>{invoice.invoice_number || 'Draft'}</span>
+                            <span className="text-xs text-muted-foreground font-normal">Due {invoice.due_date ? format(new Date(invoice.due_date), 'MMM d') : 'N/A'}</span>
                           </Link>
                         </TableCell>
-                        <TableCell className="text-neutral-600">{new Date(invoice.invoice_date).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-neutral-600">
+                           {invoice.payment_status === 'paid' ? 'Paid' : (
+                              <div className="flex flex-col">
+                                 <span>{expectedDate}</span>
+                                 <span className="text-xs text-muted-foreground">(Est.)</span>
+                              </div>
+                           )}
+                        </TableCell>
                         <TableCell>{invAmount}</TableCell>
                         <TableCell><StatusBadge status={invoice.payment_status} /></TableCell>
-                        <TableCell><RiskBadge riskLevel={invoice.risk_level} riskScore={invoice.risk_score} /></TableCell>
+                        <TableCell>{invoice.risk_level ? <RiskBadge level={invoice.risk_level} /> : '-'}</TableCell>
                       </TableRow>
                     );
                   })}

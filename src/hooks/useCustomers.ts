@@ -94,14 +94,44 @@ export function useCustomer(id: string | undefined) {
       if (!business || !id) throw new Error('Missing context or id');
       const { data, error } = await supabase
         .from('customers')
-        .select('*')
+        .select(`
+          *,
+          invoices(*)
+        `)
         .eq('id', id)
         .eq('business_id', business.id)
         .single();
       
       if (error) throw error;
-      return data as Customer;
+      return data as Customer & { invoices: any[] };
     },
     enabled: !!business && !!id,
   });
 }
+
+export type CustomerIntelligence = {
+  totalInvoices: number;
+  totalPaid: number;
+  openBalance: number;
+  averageDaysLate: number;
+  onTimeRate: number;
+  missedPromises: number;
+};
+
+export function useCustomerIntelligence(id: string | undefined) {
+  const { business } = useSession();
+
+  return useQuery({
+    queryKey: ['customerIntelligence', id],
+    queryFn: async () => {
+      if (!business || !id) throw new Error('Missing context or id');
+      const { data, error } = await supabase
+        .rpc('get_customer_intelligence', { target_customer_id: id });
+        
+      if (error) throw error;
+      return data as CustomerIntelligence;
+    },
+    enabled: !!business && !!id,
+  });
+}
+

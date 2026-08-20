@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 const paymentSchema = z.object({
-  amount: z.coerce.number().min(0.01, 'Amount must be greater than 0'),
+  amount: z.coerce.number().positive('Amount must be positive'),
   paid_at: z.string().min(1, 'Payment date is required'),
   payment_reference: z.string().optional(),
   notes: z.string().optional(),
@@ -31,7 +31,7 @@ export default function PaymentForm({ invoiceId, maxAmount, onSuccess, onCancel 
   const { createPayment } = usePayments(invoiceId);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<PaymentFormValues>({
-    resolver: zodResolver(paymentSchema),
+    resolver: zodResolver(paymentSchema) as any,
     defaultValues: {
       amount: maxAmount, // default to full payment
       paid_at: format(new Date(), 'yyyy-MM-dd'),

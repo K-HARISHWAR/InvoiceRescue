@@ -67,8 +67,8 @@ export default function InvoiceDetail() {
               <h1 className="text-2xl font-bold text-neutral-900">
                 {invoice.invoice_number || 'Draft Invoice'}
               </h1>
-              <StatusBadge status={invoice.payment_status} />
-              <RiskBadge riskLevel={invoice.risk_level} riskScore={invoice.risk_score} />
+              <StatusBadge status={invoice.payment_status as any} />
+              {invoice.risk_level && <RiskBadge level={invoice.risk_level as any} />}
             </div>
             {invoice.customer && (
               <div className="flex items-center text-neutral-600">

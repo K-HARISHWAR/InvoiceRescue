@@ -5,59 +5,90 @@ import { StatusBadge } from "@/components/common/StatusBadge"
 import { RiskBadge } from "@/components/common/RiskBadge"
 import { DateDisplay } from "@/lib/formatting/DateDisplay"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Wallet, AlertCircle, ShieldAlert, CheckCircle2, ArrowRight } from "lucide-react"
-
-// MOCK DATA - To be isolated and removed in Phase 4
-const MOCK_METRICS = {
-  outstanding: 1250000,
-  overdue: 345000,
-  atRisk: 120000,
-  collectedThisMonth: 890000
-}
-
-const MOCK_INVOICES = [
-  { id: "INV-2024-001", customer: "TechCorp Inc.", amount: 45000, dueDate: "2024-03-15", status: "overdue", risk: "high" },
-  { id: "INV-2024-002", customer: "Global Solutions", amount: 120000, dueDate: "2024-03-10", status: "overdue", risk: "critical" },
-  { id: "INV-2024-003", customer: "Nexus Industries", amount: 25000, dueDate: "2024-03-20", status: "pending", risk: "low" },
-]
+import { useDashboardMetrics, useInvoicesRequiringAttention } from "@/hooks/useDashboard"
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { Link } from "react-router-dom"
 
 export default function Dashboard() {
+  const { data: metricsData, isLoading: isMetricsLoading } = useDashboardMetrics();
+  const { data: attentionInvoices, isLoading: isAttentionLoading } = useInvoicesRequiringAttention();
+
+  const metrics = metricsData?.metrics || {
+    outstanding: 0,
+    overdue: 0,
+    atRisk: 0,
+    collectedThisMonth: 0
+  };
+
+  const agingData = [
+    { name: 'Not Due', amount: metricsData?.aging.notDue || 0, color: '#10b981' },
+    { name: '1-30 Days', amount: metricsData?.aging.days1_30 || 0, color: '#f59e0b' },
+    { name: '31-60 Days', amount: metricsData?.aging.days31_60 || 0, color: '#f97316' },
+    { name: '61-90 Days', amount: metricsData?.aging.days61_90 || 0, color: '#ef4444' },
+    { name: '90+ Days', amount: metricsData?.aging.days90Plus || 0, color: '#991b1b' },
+  ];
+
+  const pipelineDataRaw = metricsData?.pipeline || {};
+  const pipelineOrder = ['monitoring', 'due_soon', 'overdue', 'promise_pending', 'promise_missed', 'escalated', 'recovery_ready'];
+  const pipelineData = pipelineOrder.map(stage => ({
+    name: stage.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+    count: pipelineDataRaw[stage] || 0
+  }));
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-background border border-border p-3 rounded-md shadow-lg">
+          <p className="text-sm font-medium mb-1">{label}</p>
+          <p className="text-sm text-muted-foreground">
+            {payload[0].value.toLocaleString('en-IN', {
+              style: 'currency',
+              currency: 'INR'
+            })}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader 
         title="Dashboard" 
         description="Overview of your receivables and collection health."
         actions={
-          <Button>
-            New Invoice
-          </Button>
+          <Link to="/app/invoices" className="bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors">
+            View Invoices
+          </Link>
         }
       />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard 
           title="Total Outstanding" 
-          value={<MoneyDisplay amount={MOCK_METRICS.outstanding} />} 
+          value={<MoneyDisplay amount={metrics.outstanding} />} 
           icon={<Wallet />}
-          trend={{ value: "2.5%", isPositive: true }}
+          loading={isMetricsLoading}
         />
         <MetricCard 
           title="Total Overdue" 
-          value={<MoneyDisplay amount={MOCK_METRICS.overdue} />} 
+          value={<MoneyDisplay amount={metrics.overdue} />} 
           icon={<AlertCircle className="text-destructive" />}
-          trend={{ value: "1.2%", isPositive: false }}
+          loading={isMetricsLoading}
         />
         <MetricCard 
           title="At Risk" 
-          value={<MoneyDisplay amount={MOCK_METRICS.atRisk} />} 
+          value={<MoneyDisplay amount={metrics.atRisk} />} 
           icon={<ShieldAlert className="text-orange-500" />}
+          loading={isMetricsLoading}
         />
         <MetricCard 
           title="Collected This Month" 
-          value={<MoneyDisplay amount={MOCK_METRICS.collectedThisMonth} />} 
+          value={<MoneyDisplay amount={metrics.collectedThisMonth} />} 
           icon={<CheckCircle2 className="text-success" />}
-          trend={{ value: "12%", isPositive: true }}
+          loading={isMetricsLoading}
         />
       </div>
 
@@ -65,36 +96,42 @@ export default function Dashboard() {
         <Card className="lg:col-span-4 shadow-soft">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Invoices Requiring Attention</CardTitle>
+              <CardTitle>Requires Attention</CardTitle>
               <CardDescription>Highest priority overdue or at-risk invoices.</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" className="gap-1">
+            <Link to="/app/invoices" className="text-sm font-medium hover:bg-muted p-2 rounded-md transition-colors flex items-center gap-1">
               View All <ArrowRight size={14} />
-            </Button>
+            </Link>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {MOCK_INVOICES.map(inv => (
-                <div key={inv.id} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium text-foreground">{inv.customer}</span>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span>{inv.id}</span>
-                      <span>•</span>
-                      <span>Due <DateDisplay date={inv.dueDate} /></span>
+              {isAttentionLoading ? (
+                <div className="text-sm text-muted-foreground p-4 text-center">Loading invoices...</div>
+              ) : attentionInvoices?.length === 0 ? (
+                <div className="text-sm text-muted-foreground p-4 text-center border border-dashed rounded-md">No invoices require immediate attention.</div>
+              ) : (
+                attentionInvoices?.map(inv => (
+                  <div key={inv.id} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className="flex flex-col gap-1">
+                      <span className="font-medium text-foreground">{Array.isArray(inv.customers) ? inv.customers[0]?.company_name || inv.customers[0]?.name : (inv.customers as any)?.company_name || (inv.customers as any)?.name || 'Unknown Customer'}</span>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span>{inv.invoice_number}</span>
+                        <span>•</span>
+                        <span>Due {inv.due_date ? <DateDisplay date={inv.due_date} /> : 'N/A'}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <div className="font-semibold text-foreground"><MoneyDisplay amount={inv.amount} /></div>
-                      <div className="flex gap-2 mt-1 justify-end">
-                        <StatusBadge status={inv.status as any} />
-                        <RiskBadge level={inv.risk as any} />
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <div className="font-semibold text-foreground"><MoneyDisplay amount={inv.outstanding_amount} /></div>
+                        <div className="flex gap-2 mt-1 justify-end">
+                          <StatusBadge status={inv.payment_status as any} />
+                          {inv.risk_level && <RiskBadge level={inv.risk_level as any} />}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -104,10 +141,32 @@ export default function Dashboard() {
             <CardTitle>Receivables Aging</CardTitle>
             <CardDescription>Outstanding balance by days past due.</CardDescription>
           </CardHeader>
-          <CardContent className="h-[300px] flex items-center justify-center border-t border-border bg-muted/20">
-            <p className="text-muted-foreground font-medium flex items-center gap-2">
-              <AlertCircle size={16} /> Chart Placeholder (Phase 2)
-            </p>
+          <CardContent className="h-[300px]">
+             {isMetricsLoading ? (
+                <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Loading chart...</div>
+             ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={agingData} margin={{ top: 20, right: 0, left: 0, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} 
+                      dy={10} 
+                    />
+                    <YAxis 
+                      hide 
+                    />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--muted)/0.5)' }} />
+                    <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
+                      {agingData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+             )}
           </CardContent>
         </Card>
       </div>
@@ -115,22 +174,38 @@ export default function Dashboard() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="shadow-soft">
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+            <CardTitle>Collection Pipeline</CardTitle>
+            <CardDescription>Number of invoices at each stage.</CardDescription>
           </CardHeader>
-          <CardContent className="h-[200px] flex items-center justify-center border-t border-border bg-muted/20">
-            <p className="text-muted-foreground font-medium flex items-center gap-2">
-              <AlertCircle size={16} /> Activity Feed Placeholder
-            </p>
+          <CardContent className="h-[250px]">
+            {isMetricsLoading ? (
+               <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Loading chart...</div>
+            ) : (
+               <ResponsiveContainer width="100%" height="100%">
+                 <BarChart data={pipelineData} layout="vertical" margin={{ top: 10, right: 30, left: 20, bottom: 5 }}>
+                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
+                   <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                   <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }} width={110} />
+                   <Tooltip 
+                     cursor={{ fill: 'hsl(var(--muted)/0.5)' }}
+                     contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '6px' }}
+                     itemStyle={{ color: 'hsl(var(--foreground))' }}
+                   />
+                   <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} barSize={20} />
+                 </BarChart>
+               </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
         <Card className="shadow-soft">
           <CardHeader>
-            <CardTitle>Recommended Collection Actions</CardTitle>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Latest updates across your business.</CardDescription>
           </CardHeader>
-          <CardContent className="h-[200px] flex items-center justify-center border-t border-border bg-muted/20">
-            <p className="text-muted-foreground font-medium flex items-center gap-2">
-              <AlertCircle size={16} /> AI Actions Placeholder
+          <CardContent className="h-[250px] flex items-center justify-center border-t border-border/50 bg-muted/10">
+            <p className="text-muted-foreground font-medium flex items-center gap-2 text-sm">
+              <AlertCircle size={16} /> Activity feed implementation pending
             </p>
           </CardContent>
         </Card>

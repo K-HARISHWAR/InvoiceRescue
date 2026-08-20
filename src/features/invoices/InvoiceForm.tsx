@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -21,12 +21,12 @@ const invoiceSchema = z.object({
   customer_id: z.string().min(1, 'Please select a customer'),
   invoice_number: z.string().min(1, 'Invoice number is required'),
   invoice_date: z.string().min(1, 'Invoice date is required'),
-  payment_terms_days: z.coerce.number().min(0).optional(),
   due_date: z.string().optional(),
   currency: z.string().min(3).max(3),
-  subtotal: z.coerce.number().min(0),
-  tax_amount: z.coerce.number().min(0),
-  total_amount: z.coerce.number().min(0),
+  subtotal: z.coerce.number().min(0, 'Subtotal must be positive'),
+  tax_amount: z.coerce.number().min(0, 'Tax must be positive'),
+  total_amount: z.coerce.number().min(0, 'Total must be positive'),
+  payment_terms_days: z.coerce.number().int().optional(),
   notes: z.string().optional(),
 });
 
@@ -47,7 +47,7 @@ export default function InvoiceForm() {
   const { createInvoice, updateInvoice } = useInvoices();
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors, isSubmitting } } = useForm<InvoiceFormValues>({
-    resolver: zodResolver(invoiceSchema),
+    resolver: zodResolver(invoiceSchema) as any,
     defaultValues: {
       customer_id: preselectedCustomer || '',
       invoice_number: '',
@@ -66,6 +66,13 @@ export default function InvoiceForm() {
   const watchPaymentTerms = watch('payment_terms_days');
   const watchSubtotal = watch('subtotal');
   const watchTax = watch('tax_amount');
+
+  // Auto-calculate total amount
+  useEffect(() => {
+    const sub = Number(watchSubtotal) || 0;
+    const tax = Number(watchTax) || 0;
+    setValue('total_amount', sub + tax);
+  }, [watchSubtotal, watchTax, setValue]);
 
   // Auto-calculate due date when invoice date or terms change
   useEffect(() => {
@@ -123,7 +130,7 @@ export default function InvoiceForm() {
     toast.success('Invoice data extracted. Please review the details.');
   };
 
-  const onSubmit = async (data: InvoiceFormValues) => {
+  const onSubmit = async (data: any) => {
     try {
       // Determine final due date logic (prefer explicit over calculated if provided, though we auto-calc above anyway)
       let finalDueDate = data.due_date;
@@ -136,8 +143,8 @@ export default function InvoiceForm() {
         due_date: finalDueDate,
         outstanding_amount: data.total_amount, // initially, outstanding = total
         amount_paid: 0,
-        payment_status: 'open' as const,
-        collection_stage: 'monitoring' as const,
+        payment_status: 'open' as any,
+        collection_stage: 'monitoring' as any,
         source: draftId ? 'upload' : 'manual',
       };
 
@@ -173,7 +180,7 @@ export default function InvoiceForm() {
       <PageHeader 
         title="Create Invoice" 
         description="Manually enter an invoice or upload a document."
-        action={
+        actions={
           <Button variant="outline" onClick={() => navigate(-1)}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
@@ -234,7 +241,7 @@ export default function InvoiceForm() {
                   <Label htmlFor="customer_id">
                     Customer <span className="text-red-500">*</span>
                     {lowConfidenceFields.customer_name !== undefined && lowConfidenceFields.customer_name < 0.8 && (
-                      <AlertTriangle className="h-4 w-4 text-amber-500 inline ml-2" title="Low confidence extraction. Please verify." />
+                      <AlertTriangle className="h-4 w-4 text-amber-500 inline ml-2" />
                     )}
                   </Label>
                   <div className="mt-1">
@@ -257,7 +264,7 @@ export default function InvoiceForm() {
                   <Label htmlFor="invoice_number">
                     Invoice Number <span className="text-red-500">*</span>
                     {lowConfidenceFields.invoice_number !== undefined && lowConfidenceFields.invoice_number < 0.8 && (
-                      <AlertTriangle className="h-4 w-4 text-amber-500 inline ml-2" title="Low confidence extraction. Please verify." />
+                      <AlertTriangle className="h-4 w-4 text-amber-500 inline ml-2" />
                     )}
                   </Label>
                   <div className="mt-1">

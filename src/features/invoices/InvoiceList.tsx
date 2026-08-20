@@ -165,7 +165,7 @@ export default function InvoiceList() {
                         {formatMoney(inv.outstanding_amount)}
                       </TableCell>
                       <TableCell>
-                        <StatusBadge status={inv.payment_status} />
+                        <StatusBadge status={inv.payment_status as any} />
                         {inv.collection_stage !== 'monitoring' && inv.collection_stage !== 'closed' && (
                           <div className="text-xs text-neutral-500 mt-1 uppercase tracking-wider font-semibold">
                             {inv.collection_stage.replace('_', ' ')}
@@ -173,7 +173,7 @@ export default function InvoiceList() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <RiskBadge riskLevel={inv.risk_level} riskScore={inv.risk_score} />
+                        {inv.risk_level && <RiskBadge level={inv.risk_level as any} />}
                       </TableCell>
                     </TableRow>
                   );

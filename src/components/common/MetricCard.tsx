@@ -10,9 +10,10 @@ interface MetricCardProps {
     isPositive: boolean
   }
   className?: string
+  loading?: boolean
 }
 
-export default function MetricCard({ title, value, icon, trend, className }: MetricCardProps) {
+export default function MetricCard({ title, value, icon, trend, className, loading }: MetricCardProps) {
   return (
     <Card className={cn("shadow-soft", className)}>
       <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
@@ -20,8 +21,12 @@ export default function MetricCard({ title, value, icon, trend, className }: Met
         <div className="text-muted-foreground">{icon}</div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold tracking-tight">{value}</div>
-        {trend && (
+        {loading ? (
+          <div className="h-8 w-1/2 bg-muted animate-pulse rounded"></div>
+        ) : (
+          <div className="text-2xl font-bold tracking-tight">{value}</div>
+        )}
+        {trend && !loading && (
           <p className={cn("text-xs mt-1 font-medium", trend.isPositive ? "text-success" : "text-destructive")}>
             {trend.isPositive ? "+" : "-"}{trend.value} from last month
           </p>

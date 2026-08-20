@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -37,13 +37,7 @@ export default function Signup() {
     },
   });
 
-  const getErrorMessage = (error: any) => {
-    const msg = error?.message?.toLowerCase() || '';
-    if (msg.includes('user already registered')) {
-      return 'An account with this email already exists.';
-    }
-    return 'An unexpected error occurred during signup.';
-  };
+
 
   const onSubmit = async (data: SignupFormValues) => {
     setIsLoading(true);
