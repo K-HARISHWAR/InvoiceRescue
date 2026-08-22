@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Building2, FileText, IndianRupee, MessageSquare, ListTodo, Plus, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Building2, FileText, IndianRupee, MessageSquare, ListTodo, Plus, CheckCircle2, Inbox, Send, Bot } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 
 import { useInvoice } from '@/hooks/useInvoices';
 import { usePayments } from '@/hooks/usePayments';
+import { useCommunications } from '@/hooks/useCommunications';
 import { RiskBadge } from '@/components/common/RiskBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,8 @@ export default function InvoiceDetail() {
   const { invoiceId } = useParams();
   const { data: invoice, isLoading, isError } = useInvoice(invoiceId);
   const { payments, isLoading: isLoadingPayments } = usePayments(invoiceId);
+  const { data: communications, isLoading: isLoadingComms } = useCommunications(invoiceId);
+  
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
 
@@ -223,15 +226,63 @@ export default function InvoiceDetail() {
             </div>
           </div>
         )}
+        
+        {activeTab === 'communication' && (
+          <div className="space-y-4">
+            {isLoadingComms ? (
+              <div className="p-8 text-center text-neutral-500">Loading communications...</div>
+            ) : !communications || communications.length === 0 ? (
+              <div className="bg-white rounded-lg border border-neutral-200 p-8 text-center text-neutral-500">
+                No email communications found for this invoice.
+              </div>
+            ) : (
+              communications.map(comm => (
+                <div key={comm.id} className="bg-white rounded-lg border border-neutral-200 shadow-sm p-5">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-full ${comm.direction === 'inbound' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
+                        {comm.direction === 'inbound' ? <Inbox size={16} /> : <Send size={16} />}
+                      </div>
+                      <div>
+                        <div className="font-medium text-sm text-neutral-900">
+                          {comm.direction === 'inbound' ? 'Received from' : 'Sent to'}{' '}
+                          {comm.direction === 'inbound' ? comm.from_address : comm.to_addresses?.join(', ')}
+                        </div>
+                        <div className="text-xs text-neutral-500">{format(new Date(comm.sent_at), 'dd MMM yyyy, HH:mm')}</div>
+                      </div>
+                    </div>
+                    {comm.category && (
+                      <div className="bg-neutral-100 text-neutral-700 text-xs px-2.5 py-1 rounded-full border border-neutral-200 capitalize">
+                        {comm.category.replace('_', ' ')}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="mb-2 font-medium text-neutral-800 text-sm">{comm.subject}</div>
+                  <div className="text-sm text-neutral-600 whitespace-pre-wrap bg-neutral-50 p-4 rounded-md border border-neutral-100 max-h-60 overflow-y-auto">
+                    {comm.body_text}
+                  </div>
+                  
+                  {comm.ai_summary && (
+                    <div className="mt-3 flex gap-2 items-start bg-blue-50/50 p-3 rounded-md border border-blue-100">
+                      <Bot size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm text-blue-900 font-medium">{comm.ai_summary}</div>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
 
-        {['timeline', 'communication', 'actions'].includes(activeTab) && (
+        {['timeline', 'actions'].includes(activeTab) && (
           <div className="bg-white rounded-lg border border-neutral-200 shadow-sm p-12 text-center">
             <div className="mx-auto w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mb-4">
               <ListTodo className="h-6 w-6 text-neutral-400" />
             </div>
             <h3 className="text-lg font-medium text-neutral-900 mb-2">Coming Soon</h3>
             <p className="text-neutral-500 max-w-md mx-auto">
-              This section is scheduled for development in upcoming phases (AI extraction, Gmail sync, Collections Engine).
+              This section is scheduled for development in upcoming phases.
             </p>
           </div>
         )}

@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import PageHeader from "@/components/common/PageHeader";
 import { useSession } from "@/hooks/useSession";
-import { useCollectionActions, useTriggerEngine, useDraftAction, useUpdateActionStatus, type CollectionAction } from "@/hooks/useCollectionActions";
+import { useCollectionActions, useTriggerEngine, useDraftAction, useUpdateActionStatus, useSendGmailAction, type CollectionAction } from "@/hooks/useCollectionActions";
+import { useGmailConnection } from "@/hooks/useGmailConnection";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MoneyDisplay } from "@/lib/formatting/MoneyDisplay";
 import { RiskBadge } from "@/components/common/RiskBadge";
-import { Play, Check, X, RefreshCw } from "lucide-react";
+import { Play, Check, X, RefreshCw, Send, Mail } from "lucide-react";
 
 export default function ActionCenter() {
   const { business: currentBusiness } = useSession();
   const { data: actions, isLoading } = useCollectionActions(currentBusiness?.id);
   const { mutate: triggerEngine, isPending: isEngineRunning } = useTriggerEngine(currentBusiness?.id);
+  const { data: gmailConnection } = useGmailConnection(currentBusiness?.id);
   
   const [activeTab, setActiveTab] = useState<'needs_review' | 'approved' | 'completed' | 'skipped'>('needs_review');
 
@@ -36,13 +38,15 @@ export default function ActionCenter() {
         title="Action Center" 
         description="Review and approve collection actions."
         actions={
-          <Button 
-            onClick={() => triggerEngine()} 
-            disabled={isEngineRunning}
-            className="flex items-center gap-2"
-          >
-            <Play size={16} /> {isEngineRunning ? 'Running Engine...' : 'Run Action Engine'}
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => triggerEngine()} 
+              disabled={isEngineRunning}
+              className="flex items-center gap-2"
+            >
+              <Play size={16} /> {isEngineRunning ? 'Running Engine...' : 'Run Action Engine'}
+            </Button>
+          </div>
         }
       />
       
@@ -77,7 +81,11 @@ export default function ActionCenter() {
            </div>
         ) : (
            getActiveList().map(action => (
-             <ActionCard key={action.id} action={action} />
+             <ActionCard 
+               key={action.id} 
+               action={action} 
+               isGmailConnected={!!gmailConnection?.is_connected} 
+             />
            ))
         )}
       </div>
@@ -85,12 +93,14 @@ export default function ActionCenter() {
   );
 }
 
-function ActionCard({ action }: { action: CollectionAction }) {
+function ActionCard({ action, isGmailConnected }: { action: CollectionAction, isGmailConnected: boolean }) {
   const { mutate: draftAction, isPending: isDrafting } = useDraftAction();
   const { mutate: updateStatus, isPending: isUpdating } = useUpdateActionStatus();
+  const { mutate: sendGmail, isPending: isSending } = useSendGmailAction();
 
   const handleApprove = () => updateStatus({ actionId: action.id, status: 'approved' });
   const handleSkip = () => updateStatus({ actionId: action.id, status: 'skipped' });
+  const handleSend = () => sendGmail(action.id);
 
   const daysOverdue = action.invoices?.due_date 
     ? Math.max(0, Math.floor((new Date().getTime() - new Date(action.invoices.due_date).getTime()) / (1000 * 3600 * 24)))
@@ -159,8 +169,26 @@ function ActionCard({ action }: { action: CollectionAction }) {
       )}
       
       {action.status === 'approved' && (
-        <CardFooter className="border-t border-border pt-4 bg-success/5 text-sm font-medium text-success">
-          <Check size={16} className="mr-2" /> Approved. Ready to be sent manually or by Gmail sync.
+        <CardFooter className="flex justify-between items-center border-t border-border pt-4 bg-success/5">
+          <div className="text-sm font-medium text-success flex items-center">
+            <Check size={16} className="mr-2" /> Approved
+          </div>
+          {isGmailConnected ? (
+            <Button onClick={handleSend} disabled={isSending} className="bg-primary text-primary-foreground">
+              {isSending ? <RefreshCw size={16} className="mr-2 animate-spin" /> : <Send size={16} className="mr-2" />}
+              Send with Gmail
+            </Button>
+          ) : (
+            <div className="text-xs text-muted-foreground flex items-center bg-background/50 px-3 py-1.5 rounded-full border border-border">
+              <Mail size={14} className="mr-2" /> Connect Gmail in Settings to send automatically
+            </div>
+          )}
+        </CardFooter>
+      )}
+      
+      {action.status === 'sent' && (
+        <CardFooter className="border-t border-border pt-4 bg-primary/5 text-sm font-medium text-primary">
+          <Send size={16} className="mr-2" /> Sent successfully
         </CardFooter>
       )}
     </Card>

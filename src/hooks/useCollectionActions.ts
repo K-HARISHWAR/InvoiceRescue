@@ -78,7 +78,7 @@ export function useTriggerEngine(businessId: string | undefined) {
   return useMutation({
     mutationFn: async () => {
       if (!businessId) throw new Error('No business selected');
-      
+
       const { error } = await supabase.rpc('recommend_collection_actions', {
         p_business_id: businessId
       });
@@ -106,8 +106,11 @@ export function useDraftAction() {
       });
 
       if (error) throw error;
-      if (!data.success) throw new Error(data.error?.message || 'Failed to generate draft');
-      
+      if (!data.success) {
+        const errorMsg = typeof data.error === 'string' ? data.error : data.error?.message;
+        throw new Error(errorMsg || 'Failed to generate draft');
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -127,9 +130,9 @@ export function useUpdateActionStatus() {
 
   return useMutation({
     mutationFn: async ({ actionId, status }: { actionId: string; status: CollectionActionStatus }) => {
-      const updateData: any = { 
-        status, 
-        updated_at: new Date().toISOString() 
+      const updateData: any = {
+        status,
+        updated_at: new Date().toISOString()
       };
 
       if (status === 'approved') {
@@ -156,3 +159,32 @@ export function useUpdateActionStatus() {
     }
   });
 }
+
+export function useSendGmailAction() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (actionId: string) => {
+      const { data, error } = await supabase.functions.invoke('gmail-send', {
+        body: { action_id: actionId },
+      });
+
+      if (error) throw error;
+      if (!data.success) {
+        const errorMsg = typeof data.error === 'string' ? data.error : data.error?.message;
+        throw new Error(errorMsg || 'Failed to send via Gmail');
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Email sent successfully via Gmail');
+      queryClient.invalidateQueries({ queryKey: ['collection_actions'] });
+    },
+    onError: (error) => {
+      console.error('Send email error:', error);
+      toast.error('Failed to send email: ' + error.message);
+    }
+  });
+}
+

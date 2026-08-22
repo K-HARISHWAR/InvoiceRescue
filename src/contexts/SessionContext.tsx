@@ -83,7 +83,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     initSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      if (event === 'INITIAL_SESSION') return; // Already handled by initSession
+
       // Avoid triggering full fetch if only token refreshed
       if (newSession?.user?.id !== user?.id) {
           setIsLoading(true);

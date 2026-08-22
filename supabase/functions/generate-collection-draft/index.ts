@@ -69,9 +69,9 @@ serve(async (req: Request) => {
     }, null, 2);
 
     // 3. Call AI
-    const aiProvider = Deno.env.get('AI_PROVIDER') || 'openai';
-    const apiKey = Deno.env.get('AI_API_KEY');
-    const model = Deno.env.get('AI_MODEL') || 'gpt-4o';
+    const aiProvider = Deno.env.get('AI_PROVIDER') || 'gemini';
+    const apiKey = Deno.env.get('AI_API_KEY')?.trim().replace(/^["']|["']$/g, '');
+    const model = Deno.env.get('AI_MODEL') || 'gemini-1.5-flash';
 
     if (!apiKey) {
       throw new Error("AI_API_KEY is not set in edge function secrets");

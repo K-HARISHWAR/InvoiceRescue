@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
+import { useGmailConnection } from '@/hooks/useGmailConnection';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,6 +23,8 @@ type SettingsFormValues = z.infer<typeof settingsSchema>;
 export default function Settings() {
   const { business, role, refreshBusinessContext } = useSession();
   const [isLoading, setIsLoading] = useState(false);
+
+  const { data: gmailConnection, isLoading: isCheckingGmail } = useGmailConnection(business?.id);
 
   const canEdit = role === 'owner' || role === 'admin';
 
@@ -171,6 +174,107 @@ export default function Settings() {
             )}
 
           </form>
+        </div>
+      </div>
+
+      <div className="bg-white shadow sm:rounded-lg border border-neutral-200 overflow-hidden">
+        <div className="px-4 py-5 sm:p-6">
+          <h3 className="text-lg font-medium leading-6 text-neutral-900">Integrations</h3>
+          <div className="mt-2 max-w-xl text-sm text-neutral-500">
+            <p>Connect third-party services to enhance InvoiceRescue.</p>
+          </div>
+          
+          <div className="mt-6 border-t border-neutral-100 pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-medium text-neutral-900">Google Workspace (Gmail)</h4>
+                <p className="text-sm text-neutral-500 mt-1">
+                  Connect your business Gmail account to automatically send collection emails and sync customer replies.
+                </p>
+              </div>
+              <div className="ml-4 flex-shrink-0">
+                {isCheckingGmail ? (
+                  <Button variant="outline" disabled>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Checking...
+                  </Button>
+                ) : gmailConnection?.status === 'connected' ? (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="default"
+                      onClick={async () => {
+                        setIsLoading(true);
+                        try {
+                          const { data, error } = await supabase.functions.invoke('gmail-sync', {
+                            body: { business_id: business.id }
+                          });
+                          if (error) throw error;
+                          if (!data.success) throw new Error(data.message || data.error || 'Failed to sync');
+                          toast.success(`Sync complete! ${data.synced} emails synced.`);
+                        } catch (e: any) {
+                          toast.error(e.message || 'Error syncing emails');
+                        } finally {
+                          setIsLoading(false);
+                        }
+                      }}
+                      disabled={!canEdit || isLoading}
+                    >
+                      {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Sync Now
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                      onClick={async () => {
+                        if (!confirm('Are you sure you want to disconnect Gmail?')) return;
+                        setIsLoading(true);
+                        try {
+                          const { error } = await supabase.rpc('disconnect_gmail', { p_business_id: business.id });
+                          if (error) throw error;
+                          toast.success('Gmail disconnected successfully');
+                          window.location.reload();
+                        } catch (e: any) {
+                          toast.error(e.message);
+                        } finally {
+                          setIsLoading(false);
+                        }
+                      }}
+                      disabled={!canEdit || isLoading}
+                    >
+                      Disconnect
+                    </Button>
+                  </div>
+                ) : (
+                  <Button 
+                    onClick={async () => {
+                      try {
+                        setIsLoading(true);
+                        const { data, error } = await supabase.functions.invoke('gmail-oauth-start', {
+                          body: { business_id: business.id }
+                        });
+                        
+                        if (error) throw error;
+                        
+                        if (data?.url) {
+                          window.location.href = data.url;
+                        } else {
+                          toast.error(data?.error || 'Failed to start Gmail connection');
+                        }
+                      } catch (error: any) {
+                        toast.error(error.message || 'An error occurred connecting to Gmail');
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }}
+                    disabled={!canEdit || isLoading}
+                    variant="outline"
+                  >
+                    Connect Gmail
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
