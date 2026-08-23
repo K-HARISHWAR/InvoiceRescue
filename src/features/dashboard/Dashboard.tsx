@@ -9,6 +9,7 @@ import { Wallet, AlertCircle, ShieldAlert, CheckCircle2, ArrowRight } from "luci
 import { useDashboardMetrics, useInvoicesRequiringAttention } from "@/hooks/useDashboard"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
 import { Link } from "react-router-dom"
+import { DailyBriefing } from "@/components/dashboard/DailyBriefing"
 
 export default function Dashboard() {
   const { data: metricsData, isLoading: isMetricsLoading } = useDashboardMetrics();
@@ -64,6 +65,10 @@ export default function Dashboard() {
           </Link>
         }
       />
+
+      <div className="grid gap-6">
+        <DailyBriefing />
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard 

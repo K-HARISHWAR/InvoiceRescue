@@ -1,6 +1,7 @@
-import { Search, Bell, Menu } from "lucide-react"
+import { Search, Menu } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { NotificationsMenu } from "./NotificationsMenu"
 
 export default function Header() {
   return (
@@ -20,10 +21,7 @@ export default function Header() {
       </div>
       
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
-          <Bell className="h-5 w-5" />
-          <span className="absolute top-1.5 right-2 h-2 w-2 rounded-full bg-destructive"></span>
-        </Button>
+        <NotificationsMenu />
         
         <Avatar className="h-8 w-8 border border-border cursor-pointer">
           <AvatarImage src="" alt="User" />
