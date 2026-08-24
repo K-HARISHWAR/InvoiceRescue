@@ -27,6 +27,8 @@ import {
 
 import PaymentForm from '@/features/payments/PaymentForm';
 import InvoiceUpload from './components/InvoiceUpload';
+import { RecoveryPreviewModal } from '@/features/recovery/components/RecoveryPreviewModal';
+import { Archive } from 'lucide-react';
 
 type Tab = 'overview' | 'timeline' | 'documents' | 'communication' | 'payments' | 'actions';
 
@@ -38,6 +40,7 @@ export default function InvoiceDetail() {
   
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
 
   if (isLoading) return <div className="p-8 text-center text-neutral-500">Loading invoice...</div>;
   if (isError || !invoice) return <div className="p-8 text-center text-red-500">Error loading invoice.</div>;
@@ -57,10 +60,18 @@ export default function InvoiceDetail() {
 
   return (
     <div className="space-y-6 pb-20">
-      <div className="flex items-center text-sm text-neutral-500 mb-4 hover:text-neutral-900 transition-colors">
-        <Link to="/app/invoices" className="flex items-center">
+      <div className="flex items-center justify-between mb-4">
+        <Link to="/app/invoices" className="flex items-center text-sm text-neutral-500 hover:text-neutral-900 transition-colors">
           <ArrowLeft className="mr-1 h-4 w-4" /> Back to Invoices
         </Link>
+        <Button 
+          variant={(invoice.risk_level === 'high' || invoice.risk_level === 'critical') ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setIsRecoveryModalOpen(true)}
+          className={invoice.risk_level === 'high' || invoice.risk_level === 'critical' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+        >
+          <Archive className="mr-2 h-4 w-4" /> Generate Recovery Pack
+        </Button>
       </div>
 
       <div className="bg-white rounded-lg border border-neutral-200 shadow-sm p-6">
@@ -304,6 +315,12 @@ export default function InvoiceDetail() {
           />
         </DialogContent>
       </Dialog>
+
+      <RecoveryPreviewModal 
+        isOpen={isRecoveryModalOpen} 
+        onClose={() => setIsRecoveryModalOpen(false)} 
+        invoiceData={invoice} 
+      />
     </div>
   );
 }
