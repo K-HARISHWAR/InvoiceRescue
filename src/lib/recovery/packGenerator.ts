@@ -84,7 +84,7 @@ export async function generateRecoveryZip(
   summaryPdf.line(20, y + 3, 190, y + 3);
   y += 12;
   
-  timelineEvents.forEach((event, idx) => {
+  timelineEvents.forEach((event) => {
     if (y > 270) {
       summaryPdf.addPage();
       y = 30;

@@ -5,21 +5,34 @@ import { StatusBadge } from "@/components/common/StatusBadge"
 import { RiskBadge } from "@/components/common/RiskBadge"
 import { DateDisplay } from "@/lib/formatting/DateDisplay"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Wallet, AlertCircle, ShieldAlert, CheckCircle2, ArrowRight } from "lucide-react"
-import { useDashboardMetrics, useInvoicesRequiringAttention } from "@/hooks/useDashboard"
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
+import { Wallet, AlertCircle, ShieldAlert, CheckCircle2, ArrowRight, Clock, Percent, FileText, TrendingUp, CalendarClock, MessageSquare } from "lucide-react"
+import { 
+  useDashboardMetrics, 
+  useInvoicesRequiringAttention,
+  useExpectedCashInflow,
+  useCustomerPaymentBehaviour,
+  useCollectionSuccess
+} from "@/hooks/useDashboard"
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
 import { Link } from "react-router-dom"
 import { DailyBriefing } from "@/components/dashboard/DailyBriefing"
 
 export default function Dashboard() {
   const { data: metricsData, isLoading: isMetricsLoading } = useDashboardMetrics();
   const { data: attentionInvoices, isLoading: isAttentionLoading } = useInvoicesRequiringAttention();
+  const { data: cashInflow, isLoading: isCashInflowLoading } = useExpectedCashInflow();
+  const { data: paymentBehaviour, isLoading: isBehaviourLoading } = useCustomerPaymentBehaviour();
+  const { data: collectionSuccess, isLoading: isSuccessLoading } = useCollectionSuccess();
 
   const metrics = metricsData?.metrics || {
     outstanding: 0,
     overdue: 0,
     atRisk: 0,
-    collectedThisMonth: 0
+    collectedThisMonth: 0,
+    averageDaysToPay: 0,
+    averageDaysLate: 0,
+    onTimePaymentRate: 0,
+    openInvoiceCount: 0
   };
 
   const agingData = [
@@ -93,6 +106,32 @@ export default function Dashboard() {
           title="Collected This Month" 
           value={<MoneyDisplay amount={metrics.collectedThisMonth} />} 
           icon={<CheckCircle2 className="text-success" />}
+          loading={isMetricsLoading}
+        />
+        
+        {/* New Phase 11 Metrics */}
+        <MetricCard 
+          title="Avg Days to Pay" 
+          value={`${metrics.averageDaysToPay || 0} days`} 
+          icon={<Clock className="text-blue-500" />}
+          loading={isMetricsLoading}
+        />
+        <MetricCard 
+          title="Avg Days Late" 
+          value={`${metrics.averageDaysLate || 0} days`} 
+          icon={<CalendarClock className="text-amber-500" />}
+          loading={isMetricsLoading}
+        />
+        <MetricCard 
+          title="On-Time Rate" 
+          value={`${(metrics.onTimePaymentRate || 0).toFixed(1)}%`} 
+          icon={<Percent className="text-green-500" />}
+          loading={isMetricsLoading}
+        />
+        <MetricCard 
+          title="Open Invoices" 
+          value={metrics.openInvoiceCount?.toString() || "0"} 
+          icon={<FileText className="text-purple-500" />}
           loading={isMetricsLoading}
         />
       </div>
@@ -175,14 +214,114 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-      
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="shadow-soft">
+
+      {/* New Phase 11 Charts */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="lg:col-span-4 shadow-soft">
+          <CardHeader>
+            <CardTitle>Expected Cash Inflow</CardTitle>
+            <CardDescription>Estimated incoming payments by week (Projected).</CardDescription>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            {isCashInflowLoading ? (
+               <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Loading projections...</div>
+            ) : (!cashInflow || cashInflow.length === 0) ? (
+               <div className="h-full flex items-center justify-center text-sm text-muted-foreground border border-dashed rounded-md m-4">No projected cash inflow available.</div>
+            ) : (
+               <ResponsiveContainer width="100%" height="100%">
+                 <LineChart data={cashInflow} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
+                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                   <XAxis 
+                     dataKey="week_start" 
+                     axisLine={false} 
+                     tickLine={false} 
+                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                     tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                     dy={10} 
+                   />
+                   <YAxis 
+                     axisLine={false} 
+                     tickLine={false} 
+                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                     tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`}
+                   />
+                   <Tooltip content={<CustomTooltip />} />
+                   <Line type="monotone" dataKey="amount" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4, fill: "hsl(var(--primary))" }} activeDot={{ r: 6 }} />
+                 </LineChart>
+               </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3 shadow-soft">
+          <CardHeader>
+            <CardTitle>Customer Payment Behaviour</CardTitle>
+            <CardDescription>Average days early or late by customer.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+              {isBehaviourLoading ? (
+                <div className="text-sm text-muted-foreground text-center py-8">Loading behaviour data...</div>
+              ) : (!paymentBehaviour || paymentBehaviour.length === 0) ? (
+                <div className="text-sm text-muted-foreground p-4 text-center border border-dashed rounded-md">Not enough payment history.</div>
+              ) : (
+                paymentBehaviour?.map((pb, index) => (
+                  <div key={index} className="flex justify-between items-center p-3 border border-border rounded-lg bg-card hover:bg-muted/50 transition-colors">
+                    <span className="font-medium text-sm truncate pr-4">{pb.customer_name}</span>
+                    <span className={`text-sm font-bold whitespace-nowrap px-2 py-1 rounded-md ${pb.avg_days_late <= 0 ? 'bg-green-100 text-green-700' : pb.avg_days_late <= 5 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                      {pb.avg_days_late > 0 ? `+${pb.avg_days_late} days late` : `${Math.abs(pb.avg_days_late)} days early`}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="lg:col-span-4 shadow-soft">
+          <CardHeader>
+            <CardTitle>Collection Success</CardTitle>
+            <CardDescription>Invoices paid after specific collection actions.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isSuccessLoading ? (
+              <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">Loading success data...</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 h-full items-center">
+                <div className="bg-blue-50 border border-blue-100 p-6 rounded-xl flex flex-col items-center justify-center text-center">
+                   <div className="bg-blue-100 p-3 rounded-full mb-3 text-blue-600">
+                     <MessageSquare size={24} />
+                   </div>
+                   <h4 className="text-3xl font-bold text-blue-900 mb-1">{collectionSuccess?.afterReminder || 0}</h4>
+                   <p className="text-sm font-medium text-blue-700">Paid after reminder</p>
+                </div>
+                <div className="bg-green-50 border border-green-100 p-6 rounded-xl flex flex-col items-center justify-center text-center">
+                   <div className="bg-green-100 p-3 rounded-full mb-3 text-green-600">
+                     <TrendingUp size={24} />
+                   </div>
+                   <h4 className="text-3xl font-bold text-green-900 mb-1">{collectionSuccess?.afterPromise || 0}</h4>
+                   <p className="text-sm font-medium text-green-700">Paid after promise</p>
+                </div>
+                <div className="bg-amber-50 border border-amber-100 p-6 rounded-xl flex flex-col items-center justify-center text-center">
+                   <div className="bg-amber-100 p-3 rounded-full mb-3 text-amber-600">
+                     <AlertCircle size={24} />
+                   </div>
+                   <h4 className="text-3xl font-bold text-amber-900 mb-1">{collectionSuccess?.afterEscalation || 0}</h4>
+                   <p className="text-sm font-medium text-amber-700">Paid after escalation</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        
+        <Card className="lg:col-span-3 shadow-soft">
           <CardHeader>
             <CardTitle>Collection Pipeline</CardTitle>
             <CardDescription>Number of invoices at each stage.</CardDescription>
           </CardHeader>
-          <CardContent className="h-[250px]">
+          <CardContent className="h-[200px]">
             {isMetricsLoading ? (
                <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Loading chart...</div>
             ) : (
@@ -200,18 +339,6 @@ export default function Dashboard() {
                  </BarChart>
                </ResponsiveContainer>
             )}
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-soft">
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest updates across your business.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[250px] flex items-center justify-center border-t border-border/50 bg-muted/10">
-            <p className="text-muted-foreground font-medium flex items-center gap-2 text-sm">
-              <AlertCircle size={16} /> Activity feed implementation pending
-            </p>
           </CardContent>
         </Card>
       </div>

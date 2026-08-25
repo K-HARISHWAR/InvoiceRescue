@@ -167,9 +167,24 @@ export default function CustomerDetail() {
                    <span className="text-sm text-muted-foreground">Average Days Late</span>
                    <span className="text-sm font-medium">{intel.averageDaysLate} days</span>
                  </div>
-                 <div className="flex justify-between items-center">
+                 <div className="flex justify-between items-center border-b border-border pb-2">
                    <span className="text-sm text-muted-foreground">Missed Promises</span>
                    <span className="text-sm font-medium">{intel.missedPromises}</span>
+                 </div>
+                 <div className="flex justify-between items-center border-b border-border pb-2">
+                   <span className="text-sm text-muted-foreground">High Risk Invoices</span>
+                   <span className="text-sm font-medium">{intel.currentHighRiskInvoices}</span>
+                 </div>
+                 <div className="flex flex-col pt-1">
+                   <span className="text-sm text-muted-foreground mb-1">Recent Communication</span>
+                   {intel.recentCommunication ? (
+                     <div className="text-xs bg-muted/50 p-2 rounded-md">
+                       <span className="font-medium">{intel.recentCommunication.subject || 'No Subject'}</span>
+                       <div className="text-muted-foreground mt-1">{format(new Date(intel.recentCommunication.created_at), 'MMM d, yyyy')}</div>
+                     </div>
+                   ) : (
+                     <span className="text-xs text-muted-foreground">No recent communication</span>
+                   )}
                  </div>
               </div>
             ) : (

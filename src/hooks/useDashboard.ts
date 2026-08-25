@@ -8,6 +8,10 @@ export type DashboardMetrics = {
     overdue: number;
     atRisk: number;
     collectedThisMonth: number;
+    averageDaysToPay: number;
+    averageDaysLate: number;
+    onTimePaymentRate: number;
+    openInvoiceCount: number;
   };
   aging: {
     notDue: number;
@@ -65,6 +69,60 @@ export function useInvoicesRequiringAttention() {
         
       if (error) throw error;
       return data;
+    },
+    enabled: !!business?.id,
+  });
+}
+
+export function useExpectedCashInflow() {
+  const { business } = useSession();
+
+  return useQuery({
+    queryKey: ['expectedCashInflow', business?.id],
+    queryFn: async () => {
+      if (!business?.id) return [];
+      
+      const { data, error } = await supabase
+        .rpc('get_expected_cash_inflow', { target_business_id: business.id });
+        
+      if (error) throw error;
+      return data as { week_start: string, amount: number }[];
+    },
+    enabled: !!business?.id,
+  });
+}
+
+export function useCustomerPaymentBehaviour() {
+  const { business } = useSession();
+
+  return useQuery({
+    queryKey: ['customerPaymentBehaviour', business?.id],
+    queryFn: async () => {
+      if (!business?.id) return [];
+      
+      const { data, error } = await supabase
+        .rpc('get_customer_payment_behaviour', { target_business_id: business.id });
+        
+      if (error) throw error;
+      return data as { customer_name: string, avg_days_late: number }[];
+    },
+    enabled: !!business?.id,
+  });
+}
+
+export function useCollectionSuccess() {
+  const { business } = useSession();
+
+  return useQuery({
+    queryKey: ['collectionSuccess', business?.id],
+    queryFn: async () => {
+      if (!business?.id) return null;
+      
+      const { data, error } = await supabase
+        .rpc('get_collection_success', { target_business_id: business.id });
+        
+      if (error) throw error;
+      return data as { afterReminder: number, afterPromise: number, afterEscalation: number };
     },
     enabled: !!business?.id,
   });

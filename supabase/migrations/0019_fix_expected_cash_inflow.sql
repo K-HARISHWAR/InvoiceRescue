@@ -1,0 +1,42 @@
+CREATE OR REPLACE FUNCTION get_expected_cash_inflow(target_business_id UUID)
+RETURNS JSONB AS $$
+DECLARE
+    result JSONB;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM business_members WHERE business_id = target_business_id AND user_id = auth.uid()) THEN
+        RAISE EXCEPTION 'Not authorized';
+    END IF;
+
+    WITH customer_stats AS (
+        SELECT i.customer_id,
+               COALESCE(AVG(GREATEST(0, EXTRACT(DAY FROM ((SELECT MAX(paid_at) FROM payments p WHERE p.invoice_id = i.id) - i.due_date)))), 0)::INTEGER as avg_days_late
+        FROM invoices i
+        WHERE i.business_id = target_business_id AND i.payment_status = 'paid'
+        GROUP BY i.customer_id
+    ),
+    expected_invoices AS (
+        SELECT i.id, i.outstanding_amount,
+               (i.due_date + COALESCE(cs.avg_days_late, 0) * INTERVAL '1 day')::TIMESTAMP as expected_date
+        FROM invoices i
+        LEFT JOIN customer_stats cs ON i.customer_id = cs.customer_id
+        WHERE i.business_id = target_business_id AND i.payment_status IN ('open', 'partial', 'disputed')
+    )
+    SELECT COALESCE(jsonb_agg(
+        jsonb_build_object(
+            'week_start', DATE_TRUNC('week', expected_date)::DATE,
+            'amount', amount
+        )
+    ), '[]'::jsonb) INTO result
+    FROM (
+        SELECT DATE_TRUNC('week', expected_date)::DATE as week_start,
+               SUM(outstanding_amount) as amount
+        FROM expected_invoices
+        WHERE expected_date >= DATE_TRUNC('week', CURRENT_TIMESTAMP)::DATE
+        GROUP BY DATE_TRUNC('week', expected_date)::DATE
+        ORDER BY week_start ASC
+        LIMIT 10
+    ) aggregated;
+    
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

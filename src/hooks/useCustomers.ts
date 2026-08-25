@@ -116,6 +116,14 @@ export type CustomerIntelligence = {
   averageDaysLate: number;
   onTimeRate: number;
   missedPromises: number;
+  currentHighRiskInvoices: number;
+  recentCommunication: {
+    id: string;
+    subject: string;
+    created_at: string;
+    channel: string;
+    direction: string;
+  } | null;
 };
 
 export function useCustomerIntelligence(id: string | undefined) {
