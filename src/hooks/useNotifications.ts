@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
+import { notificationKeys } from '@/lib/queryKeys';
 
 export interface Notification {
   id: string;
@@ -18,7 +19,7 @@ export function useNotifications() {
   const queryClient = useQueryClient();
 
   const { data: notifications = [], isLoading } = useQuery({
-    queryKey: ['notifications', user?.id],
+    queryKey: notificationKeys.user(user?.id),
     queryFn: async (): Promise<Notification[]> => {
       if (!user?.id) return [];
 

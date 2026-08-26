@@ -18,7 +18,7 @@ const paymentSchema = z.object({
   notes: z.string().optional(),
 });
 
-type PaymentFormValues = z.infer<typeof paymentSchema>;
+
 
 interface PaymentFormProps {
   invoiceId: string;
@@ -30,7 +30,7 @@ interface PaymentFormProps {
 export default function PaymentForm({ invoiceId, maxAmount, onSuccess, onCancel }: PaymentFormProps) {
   const { createPayment } = usePayments(invoiceId);
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<PaymentFormValues>({
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<z.infer<typeof paymentSchema>>({
     resolver: zodResolver(paymentSchema) as any,
     defaultValues: {
       amount: maxAmount, // default to full payment
@@ -40,13 +40,13 @@ export default function PaymentForm({ invoiceId, maxAmount, onSuccess, onCancel 
     }
   });
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: z.infer<typeof paymentSchema>) => {
     try {
       await createPayment.mutateAsync(data);
       toast.success('Payment recorded successfully');
       if (onSuccess) onSuccess();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to record payment');
+    } catch (error: Error | unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to record payment');
       console.error(error);
     }
   };

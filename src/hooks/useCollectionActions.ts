@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { actionKeys } from '@/lib/queryKeys';
 
 export type CollectionActionStatus = 'recommended' | 'draft' | 'approved' | 'sent' | 'skipped' | 'completed' | 'failed';
 export type CollectionActionType = 'friendly_reminder' | 'due_date_reminder' | 'overdue_reminder' | 'promise_followup' | 'escalation' | 'document_request' | 'recovery_pack';
@@ -37,7 +38,7 @@ export interface CollectionAction {
 
 export function useCollectionActions(businessId: string | undefined) {
   return useQuery({
-    queryKey: ['collection_actions', businessId],
+    queryKey: actionKeys.business(businessId),
     queryFn: async () => {
       if (!businessId) return [];
 
@@ -87,7 +88,7 @@ export function useTriggerEngine(businessId: string | undefined) {
     },
     onSuccess: () => {
       toast.success('Action engine completed');
-      queryClient.invalidateQueries({ queryKey: ['collection_actions', businessId] });
+      queryClient.invalidateQueries({ queryKey: actionKeys.business(businessId) });
     },
     onError: (error) => {
       console.error('Failed to run engine:', error);
@@ -151,7 +152,7 @@ export function useUpdateActionStatus() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['collection_actions'] });
+      queryClient.invalidateQueries({ queryKey: actionKeys.all });
     },
     onError: (error) => {
       console.error('Failed to update action status:', error);

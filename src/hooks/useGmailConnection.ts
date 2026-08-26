@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
+import { gmailKeys } from '@/lib/queryKeys';
 
 export function useGmailConnection(businessId: string | undefined) {
   return useQuery({
-    queryKey: ['gmail_connection', businessId],
+    queryKey: gmailKeys.business(businessId),
     queryFn: async () => {
       if (!businessId) return null;
 

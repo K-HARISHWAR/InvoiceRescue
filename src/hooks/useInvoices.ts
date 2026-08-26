@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
+import { invoiceKeys } from '@/lib/queryKeys';
 
 export type PaymentStatus = 'draft' | 'open' | 'partial' | 'paid' | 'disputed' | 'cancelled';
 export type CollectionStage = 'monitoring' | 'due_soon' | 'overdue' | 'promise_pending' | 'promise_missed' | 'escalated' | 'recovery_ready' | 'closed';
@@ -44,7 +45,7 @@ export function useInvoices() {
   const queryClient = useQueryClient();
 
   const invoicesQuery = useQuery({
-    queryKey: ['invoices', business?.id],
+    queryKey: invoiceKeys.list(business?.id),
     queryFn: async () => {
       if (!business) throw new Error('No business context');
       
@@ -76,7 +77,7 @@ export function useInvoices() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices', business?.id] });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.list(business?.id) });
     },
   });
 
@@ -95,8 +96,8 @@ export function useInvoices() {
       return data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['invoices', business?.id] });
-      queryClient.invalidateQueries({ queryKey: ['invoice', data.id] });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.list(business?.id) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(data.id) });
     },
   });
 
@@ -114,7 +115,7 @@ export function useInvoice(id: string | undefined) {
   const { business } = useSession();
 
   return useQuery({
-    queryKey: ['invoice', id],
+    queryKey: invoiceKeys.detail(id),
     queryFn: async () => {
       if (!business || !id) throw new Error('Missing context or id');
       const { data, error } = await supabase

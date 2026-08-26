@@ -6,7 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 
-import { useCustomers } from '@/hooks/useCustomers';
+import { useCustomers, type Customer } from '@/hooks/useCustomers';
+import { type Invoice } from '@/hooks/useInvoices';
 import PageHeader from '@/components/common/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -114,7 +115,7 @@ export default function CustomerList() {
               </TableRow>
             ) : (
               filteredCustomers.map((customer) => {
-                const invoices: any[] = (customer as any).invoices || [];
+                const invoices: Invoice[] = (customer as Customer & { invoices: Invoice[] }).invoices || [];
                 const openInvoices = invoices.filter(i => ['open', 'partial', 'disputed'].includes(i.payment_status));
                 const outstanding = openInvoices.reduce((sum, i) => sum + Number(i.outstanding_amount), 0);
                 // We'll use formatting soon, but just standard JS for now

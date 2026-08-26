@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import InvoiceUpload from './components/InvoiceUpload';
+import { type ExtractedInvoiceData, type DocumentDetails } from './types';
+import { type PaymentStatus, type CollectionStage } from '@/hooks/useInvoices';
 
 const invoiceSchema = z.object({
   customer_id: z.string().min(1, 'Please select a customer'),
@@ -36,11 +38,10 @@ export default function InvoiceForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedCustomer = searchParams.get('customer');
-  const [mode, setMode] = useState<'manual' | 'upload'>('upload');
+  const [mode, setMode] = useState<'upload' | 'manual'>('upload');
   const [draftId, setDraftId] = useState<string | null>(null);
-  const [pendingDocument, setPendingDocument] = useState<any>(null);
+  const [pendingDocument, setPendingDocument] = useState<DocumentDetails | null>(null);
   const [extractionWarnings, setExtractionWarnings] = useState<string[]>([]);
-  const [lowConfidenceFields, setLowConfidenceFields] = useState<Record<string, number>>({});
   
   const { business, user } = useSession();
   const { customers, isLoading: isLoadingCustomers } = useCustomers();
@@ -87,7 +88,7 @@ export default function InvoiceForm() {
     }
   }, [watchInvoiceDate, watchPaymentTerms, setValue]);
 
-  const handleExtractionComplete = (data: any | null, draftInvoiceId?: string, documentDetails?: any) => {
+  const handleExtractionComplete = (data: ExtractedInvoiceData | null, draftInvoiceId?: string, documentDetails?: DocumentDetails) => {
     if (draftInvoiceId) setDraftId(draftInvoiceId);
     if (documentDetails) setPendingDocument(documentDetails);
     
@@ -98,8 +99,8 @@ export default function InvoiceForm() {
     let matchedCustomerId = '';
     if (data.customer_name) {
       const match = customers.find(c => 
-        c.name.toLowerCase() === data.customer_name.toLowerCase() ||
-        c.company_name?.toLowerCase() === data.customer_name.toLowerCase()
+        c.name.toLowerCase() === data.customer_name?.toLowerCase() ||
+        c.company_name?.toLowerCase() === data.customer_name?.toLowerCase()
       );
       if (match) {
         matchedCustomerId = match.id;
@@ -116,21 +117,16 @@ export default function InvoiceForm() {
       subtotal: data.subtotal || 0,
       tax_amount: data.tax_amount || 0,
       total_amount: data.total_amount || 0,
-      notes: data.purchase_order ? `PO: ${data.purchase_order}` : '',
     });
 
-    if (data.warnings?.length > 0) {
+    if (data.warnings && data.warnings.length > 0) {
       setExtractionWarnings(data.warnings);
-    }
-    
-    if (data.field_confidence) {
-      setLowConfidenceFields(data.field_confidence);
     }
 
     toast.success('Invoice data extracted. Please review the details.');
   };
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: z.infer<typeof invoiceSchema>) => {
     try {
       // Determine final due date logic (prefer explicit over calculated if provided, though we auto-calc above anyway)
       let finalDueDate = data.due_date;
@@ -143,8 +139,9 @@ export default function InvoiceForm() {
         due_date: finalDueDate,
         outstanding_amount: data.total_amount, // initially, outstanding = total
         amount_paid: 0,
-        payment_status: 'open' as any,
-        collection_stage: 'monitoring' as any,
+        payment_status: 'open' as PaymentStatus,
+        collection_stage: 'monitoring' as CollectionStage,
+        created_by: user?.id,
         source: draftId ? 'upload' : 'manual',
       };
 
@@ -240,9 +237,6 @@ export default function InvoiceForm() {
                 <div className="sm:col-span-3">
                   <Label htmlFor="customer_id">
                     Customer <span className="text-red-500">*</span>
-                    {lowConfidenceFields.customer_name !== undefined && lowConfidenceFields.customer_name < 0.8 && (
-                      <AlertTriangle className="h-4 w-4 text-amber-500 inline ml-2" />
-                    )}
                   </Label>
                   <div className="mt-1">
                     <select
@@ -263,9 +257,6 @@ export default function InvoiceForm() {
                 <div className="sm:col-span-3">
                   <Label htmlFor="invoice_number">
                     Invoice Number <span className="text-red-500">*</span>
-                    {lowConfidenceFields.invoice_number !== undefined && lowConfidenceFields.invoice_number < 0.8 && (
-                      <AlertTriangle className="h-4 w-4 text-amber-500 inline ml-2" />
-                    )}
                   </Label>
                   <div className="mt-1">
                     <Input id="invoice_number" {...register('invoice_number')} />

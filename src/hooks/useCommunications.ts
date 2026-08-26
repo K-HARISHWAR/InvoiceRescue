@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
+import { communicationKeys } from '@/lib/queryKeys';
 
 export interface Communication {
   id: string;
@@ -16,7 +17,7 @@ export interface Communication {
 
 export function useCommunications(invoiceId: string | undefined) {
   return useQuery({
-    queryKey: ['communications', invoiceId],
+    queryKey: communicationKeys.invoice(invoiceId),
     queryFn: async () => {
       if (!invoiceId) return [];
 

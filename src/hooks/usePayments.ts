@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
+import { paymentKeys, invoiceKeys } from '@/lib/queryKeys';
 
 export type Payment = {
   id: string;
@@ -19,7 +20,7 @@ export function usePayments(invoiceId: string | undefined) {
   const queryClient = useQueryClient();
 
   const paymentsQuery = useQuery({
-    queryKey: ['payments', invoiceId],
+    queryKey: paymentKeys.invoice(invoiceId),
     queryFn: async () => {
       if (!business || !invoiceId) throw new Error('Missing context or invoiceId');
       
@@ -49,11 +50,10 @@ export function usePayments(invoiceId: string | undefined) {
       return data;
     },
     onSuccess: () => {
-      // Invalidate both payments list and the specific invoice, 
-      // since the DB trigger will update the invoice's balance & status
-      queryClient.invalidateQueries({ queryKey: ['payments', invoiceId] });
-      queryClient.invalidateQueries({ queryKey: ['invoice', invoiceId] });
-      queryClient.invalidateQueries({ queryKey: ['invoices', business?.id] });
+      // Invalidate relevant queries to refresh data
+      queryClient.invalidateQueries({ queryKey: paymentKeys.invoice(invoiceId) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(invoiceId) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.list(business?.id) });
     },
   });
 

@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
+import { recoveryKeys } from '@/lib/queryKeys';
 import { toast } from 'sonner';
 import { generateRecoveryZip } from '@/lib/recovery/packGenerator';
 
@@ -19,7 +20,7 @@ export function useRecoveryPack(invoiceId?: string) {
   const { session } = useSession();
 
   const { data: timeline, isLoading: isLoadingTimeline, isError, error } = useQuery({
-    queryKey: ['invoice-timeline', invoiceId],
+    queryKey: recoveryKeys.timeline(invoiceId),
     queryFn: async (): Promise<TimelineEvent[]> => {
       if (!invoiceId) return [];
       const { data, error } = await supabase
@@ -49,8 +50,8 @@ export function useRecoveryPack(invoiceId?: string) {
         if (!aiData?.success) throw new Error(aiData?.error || "Unknown error generating summary");
         
         aiSummary = aiData.summary;
-      } catch (err: any) {
-        console.warn("Edge function failed (likely not running locally). Using fallback summary.", err);
+      } catch (err: unknown) {
+        console.warn('AI Edge Function failed, using basic local summary fallback', err);
         aiSummary = `[LOCAL TESTING FALLBACK] - AI Summary could not be generated because the Edge Function is not running.\n\nThis is an organizational summary of verified events for Invoice ${invoiceData.invoice_number} belonging to ${invoiceData.customers?.name || 'Customer'}. The original invoice amount was ${invoiceData.total_amount} ${invoiceData.currency}, with ${invoiceData.outstanding_amount} currently outstanding. \n\nPlease review the attached timeline for a chronological list of events.`;
       }
 
@@ -100,8 +101,8 @@ export function useRecoveryPack(invoiceId?: string) {
     onSuccess: () => {
       toast.success('Recovery Pack generated successfully!');
     },
-    onError: (err: any) => {
-      console.error(err);
+    onError: (err: Error) => {
+      console.error('Error generating pack:', err);
       toast.error(err.message || 'Failed to generate Recovery Pack');
     }
   });

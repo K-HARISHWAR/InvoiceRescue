@@ -6,11 +6,12 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
 import { Button } from '@/components/ui/button';
+import { type ExtractedInvoiceData, type DocumentDetails } from '../types';
 
 interface InvoiceUploadProps {
   invoiceId?: string; // If provided, attaches to this invoice.
   onUploadSuccess?: () => void;
-  onExtractionComplete?: (data: any, targetInvoiceId?: string, documentDetails?: any) => void;
+  onExtractionComplete?: (data: ExtractedInvoiceData | null, targetInvoiceId?: string, documentDetails?: DocumentDetails) => void;
 }
 
 export default function InvoiceUpload({ invoiceId, onUploadSuccess, onExtractionComplete }: InvoiceUploadProps) {
@@ -97,9 +98,9 @@ export default function InvoiceUpload({ invoiceId, onUploadSuccess, onExtraction
           if (!parseResponse?.success) throw new Error(parseResponse?.error?.message || 'Parsing failed');
 
           onExtractionComplete(parseResponse.data, targetInvoiceId, documentDetails);
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error('Extraction error:', err);
-          toast.error(err.message || 'Failed to extract invoice data. You can enter details manually.');
+          toast.error(err instanceof Error ? err.message : 'Failed to extract invoice data. You can enter details manually.');
           // Still call onExtractionComplete with null data so the form switches to manual mode
           onExtractionComplete(null, targetInvoiceId, documentDetails);
         } finally {
@@ -111,9 +112,9 @@ export default function InvoiceUpload({ invoiceId, onUploadSuccess, onExtraction
         if (onUploadSuccess) onUploadSuccess();
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      toast.error(error.message || 'An unexpected error occurred during upload');
+      toast.error(error instanceof Error ? error.message : 'An unexpected error occurred during upload');
     } finally {
       setIsUploading(false);
     }

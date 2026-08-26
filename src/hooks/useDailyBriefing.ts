@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
+import { dailyBriefingKeys } from '@/lib/queryKeys';
 
 export interface DailyActionItem {
   id: string; // Could be invoice id or promise id
@@ -20,7 +21,7 @@ export function useDailyBriefing() {
   const { business: currentBusiness } = useSession();
 
   return useQuery({
-    queryKey: ['daily-briefing', currentBusiness?.id],
+    queryKey: dailyBriefingKeys.business(currentBusiness?.id),
     queryFn: async (): Promise<DailyBriefingData> => {
       if (!currentBusiness?.id) throw new Error('No business context');
 

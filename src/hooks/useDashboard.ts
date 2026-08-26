@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
+import { dashboardKeys } from '@/lib/queryKeys';
 
 export type DashboardMetrics = {
   metrics: {
@@ -27,7 +28,7 @@ export function useDashboardMetrics() {
   const { business } = useSession();
 
   return useQuery({
-    queryKey: ['dashboardMetrics', business?.id],
+    queryKey: dashboardKeys.metrics(business?.id),
     queryFn: async () => {
       if (!business?.id) return null;
       
@@ -45,7 +46,7 @@ export function useInvoicesRequiringAttention() {
   const { business } = useSession();
 
   return useQuery({
-    queryKey: ['invoicesRequiringAttention', business?.id],
+    queryKey: dashboardKeys.attention(business?.id),
     queryFn: async () => {
       if (!business?.id) return [];
       
@@ -78,7 +79,7 @@ export function useExpectedCashInflow() {
   const { business } = useSession();
 
   return useQuery({
-    queryKey: ['expectedCashInflow', business?.id],
+    queryKey: dashboardKeys.cashInflow(business?.id),
     queryFn: async () => {
       if (!business?.id) return [];
       
@@ -96,7 +97,7 @@ export function useCustomerPaymentBehaviour() {
   const { business } = useSession();
 
   return useQuery({
-    queryKey: ['customerPaymentBehaviour', business?.id],
+    queryKey: dashboardKeys.paymentBehaviour(business?.id),
     queryFn: async () => {
       if (!business?.id) return [];
       
@@ -114,7 +115,7 @@ export function useCollectionSuccess() {
   const { business } = useSession();
 
   return useQuery({
-    queryKey: ['collectionSuccess', business?.id],
+    queryKey: dashboardKeys.collectionSuccess(business?.id),
     queryFn: async () => {
       if (!business?.id) return null;
       

@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
+import { customerKeys } from '@/lib/queryKeys';
+import { type Invoice } from '@/hooks/useInvoices';
 
 export type Customer = {
   id: string;
@@ -20,7 +22,7 @@ export function useCustomers() {
   const queryClient = useQueryClient();
 
   const customersQuery = useQuery({
-    queryKey: ['customers', business?.id],
+    queryKey: customerKeys.list(business?.id),
     queryFn: async () => {
       if (!business) throw new Error('No business context');
       const { data, error } = await supabase
@@ -51,7 +53,7 @@ export function useCustomers() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customers', business?.id] });
+      queryClient.invalidateQueries({ queryKey: customerKeys.list(business?.id) });
     },
   });
 
@@ -70,8 +72,8 @@ export function useCustomers() {
       return data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['customers', business?.id] });
-      queryClient.invalidateQueries({ queryKey: ['customer', data.id] });
+      queryClient.invalidateQueries({ queryKey: customerKeys.list(business?.id) });
+      queryClient.invalidateQueries({ queryKey: customerKeys.detail(data.id) });
     },
   });
 
@@ -89,7 +91,7 @@ export function useCustomer(id: string | undefined) {
   const { business } = useSession();
 
   return useQuery({
-    queryKey: ['customer', id],
+    queryKey: customerKeys.detail(id),
     queryFn: async () => {
       if (!business || !id) throw new Error('Missing context or id');
       const { data, error } = await supabase
@@ -103,7 +105,7 @@ export function useCustomer(id: string | undefined) {
         .single();
       
       if (error) throw error;
-      return data as Customer & { invoices: any[] };
+      return data as Customer & { invoices: Invoice[] };
     },
     enabled: !!business && !!id,
   });
@@ -130,7 +132,7 @@ export function useCustomerIntelligence(id: string | undefined) {
   const { business } = useSession();
 
   return useQuery({
-    queryKey: ['customerIntelligence', id],
+    queryKey: customerKeys.intelligence(id),
     queryFn: async () => {
       if (!business || !id) throw new Error('Missing context or id');
       const { data, error } = await supabase

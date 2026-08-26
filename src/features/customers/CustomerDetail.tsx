@@ -6,7 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 
-import { useCustomer, useCustomers, useCustomerIntelligence } from '@/hooks/useCustomers';
+import { useCustomer, useCustomers, useCustomerIntelligence, type Customer } from '@/hooks/useCustomers';
+import { type Invoice } from '@/hooks/useInvoices';
 import PageHeader from '@/components/common/PageHeader';
 import MetricCard from '@/components/common/MetricCard';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -88,7 +89,7 @@ export default function CustomerDetail() {
     return <div className="p-8 text-center text-red-500">Error loading customer.</div>;
   }
 
-  const invoices = (customer as any).invoices || [];
+  const invoices: Invoice[] = (customer as Customer & { invoices: Invoice[] }).invoices || [];
 
   return (
     <div className="space-y-6">
@@ -203,7 +204,7 @@ export default function CustomerDetail() {
             />
             <MetricCard 
               title="Open Invoices" 
-              value={invoices.filter((i: any) => ['open', 'partial', 'disputed'].includes(i.payment_status)).length.toString()} 
+              value={invoices.filter((i: Invoice) => ['open', 'partial', 'disputed'].includes(i.payment_status)).length.toString()} 
               icon={<FileText className="h-4 w-4 text-blue-600" />} 
             />
           </div>
@@ -231,7 +232,7 @@ export default function CustomerDetail() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {invoices.slice(0, 5).map((invoice: any) => {
+                  {invoices.slice(0, 5).map((invoice: Invoice) => {
                     const invAmount = new Intl.NumberFormat('en-IN', { style: 'currency', currency: invoice.currency }).format(invoice.total_amount);
                     const expectedDate = invoice.due_date && intel ? format(addDays(new Date(invoice.due_date), intel.averageDaysLate), 'MMM d, yyyy') : 'N/A';
                     
@@ -252,7 +253,7 @@ export default function CustomerDetail() {
                            )}
                         </TableCell>
                         <TableCell>{invAmount}</TableCell>
-                        <TableCell><StatusBadge status={invoice.payment_status} /></TableCell>
+                        <TableCell><StatusBadge status={invoice.payment_status as any} /></TableCell>
                         <TableCell>{invoice.risk_level ? <RiskBadge level={invoice.risk_level} /> : '-'}</TableCell>
                       </TableRow>
                     );

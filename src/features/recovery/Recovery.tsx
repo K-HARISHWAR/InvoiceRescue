@@ -3,6 +3,7 @@ import PageHeader from "@/components/common/PageHeader";
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
+import { recoveryKeys } from '@/lib/queryKeys';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { MoneyDisplay } from '@/lib/formatting/MoneyDisplay';
 import { Link } from 'react-router-dom';
@@ -14,7 +15,7 @@ export default function Recovery() {
   const [activeTab, setActiveTab] = useState<'ready' | 'generated' | 'resolved'>('ready');
 
   const { data: invoices, isLoading } = useQuery({
-    queryKey: ['recovery-invoices', business?.id],
+    queryKey: recoveryKeys.business(business?.id),
     queryFn: async () => {
       if (!business?.id) return [];
       const { data, error } = await supabase
