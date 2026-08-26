@@ -6,6 +6,7 @@ import { format, differenceInDays } from 'date-fns';
 import { useInvoice } from '@/hooks/useInvoices';
 import { usePayments } from '@/hooks/usePayments';
 import { useCommunications } from '@/hooks/useCommunications';
+import { useRecoveryPack } from '@/hooks/useRecoveryPack';
 import { RiskBadge } from '@/components/common/RiskBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,7 @@ export default function InvoiceDetail() {
   const { data: invoice, isLoading, isError } = useInvoice(invoiceId);
   const { payments, isLoading: isLoadingPayments } = usePayments(invoiceId);
   const { data: communications, isLoading: isLoadingComms } = useCommunications(invoiceId);
+  const { timeline, isLoadingTimeline } = useRecoveryPack(invoiceId);
   
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -286,15 +288,46 @@ export default function InvoiceDetail() {
           </div>
         )}
 
-        {['timeline', 'actions'].includes(activeTab) && (
+        {activeTab === 'timeline' && (
+          <div className="bg-white rounded-lg border border-neutral-200 shadow-sm p-6">
+            <h3 className="text-lg font-medium text-neutral-900 mb-6">Verified Evidence Timeline</h3>
+            {isLoadingTimeline ? (
+              <div className="text-center text-neutral-500 py-8">Loading timeline...</div>
+            ) : (!timeline || timeline.length === 0) ? (
+              <div className="text-center text-neutral-500 py-8">No timeline events recorded yet.</div>
+            ) : (
+              <div className="relative border-l-2 border-neutral-200 ml-4 space-y-8">
+                {timeline.map((event, index) => (
+                  <div key={event.id || index} className="relative pl-6">
+                    <div className="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full bg-white border-2 border-blue-500" />
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-1">
+                      <div className="font-medium text-neutral-900 capitalize">
+                        {event.event_type.replace(/_/g, ' ')}
+                      </div>
+                      <div className="text-xs font-medium text-neutral-500 whitespace-nowrap sm:ml-4">
+                        {format(new Date(event.event_date), 'dd MMM yyyy, HH:mm')}
+                      </div>
+                    </div>
+                    <p className="text-sm text-neutral-700 mt-1">{event.description}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'actions' && (
           <div className="bg-white rounded-lg border border-neutral-200 shadow-sm p-12 text-center">
             <div className="mx-auto w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mb-4">
-              <ListTodo className="h-6 w-6 text-neutral-400" />
+              <CheckCircle2 className="h-6 w-6 text-neutral-400" />
             </div>
-            <h3 className="text-lg font-medium text-neutral-900 mb-2">Coming Soon</h3>
-            <p className="text-neutral-500 max-w-md mx-auto">
-              This section is scheduled for development in upcoming phases.
+            <h3 className="text-lg font-medium text-neutral-900 mb-2">Action Center</h3>
+            <p className="text-neutral-500 max-w-md mx-auto mb-6">
+              View and manage recommended collection actions globally in the main Action Center.
             </p>
+            <Link to="/app/actions">
+              <Button>Go to Global Action Center</Button>
+            </Link>
           </div>
         )}
       </div>
