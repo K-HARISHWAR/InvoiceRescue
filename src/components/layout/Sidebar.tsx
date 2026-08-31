@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom"
-import { LayoutDashboard, FileText, Users, Activity, ShieldAlert, Settings, Building2 } from "lucide-react"
+import { LayoutDashboard, FileText, Users, Activity, ShieldAlert, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { BusinessSwitcher } from "./BusinessSwitcher"
 
 const navItems = [
   { name: "Dashboard", href: "/app/dashboard", icon: LayoutDashboard },
@@ -39,15 +40,7 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-border">
-        <div className="flex items-center gap-3 p-2 rounded-md hover:bg-secondary transition-colors cursor-pointer">
-          <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center text-primary">
-            <Building2 size={16} />
-          </div>
-          <div className="flex flex-col overflow-hidden">
-            <span className="text-sm font-medium truncate">Acme Corp</span>
-            <span className="text-xs text-muted-foreground truncate">Business settings</span>
-          </div>
-        </div>
+        <BusinessSwitcher />
       </div>
     </aside>
   )

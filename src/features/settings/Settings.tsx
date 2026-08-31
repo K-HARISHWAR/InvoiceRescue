@@ -82,6 +82,38 @@ export default function Settings() {
     }
   };
 
+  const handleArchive = async () => {
+    if (!business) return;
+    if (!confirm('Are you absolutely sure you want to archive this organisation? This action will disable automation and remove it from the switcher.')) return;
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.rpc('archive_business', { p_business_id: business.id });
+      if (error) throw error;
+      toast.success('Organisation archived successfully');
+      window.location.href = '/app/dashboard'; // full reload to trigger fetch of remaining available businesses
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to archive organisation');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLeave = async () => {
+    if (!business) return;
+    if (!confirm('Are you sure you want to leave this organisation? You will lose access immediately.')) return;
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.rpc('leave_business', { p_business_id: business.id });
+      if (error) throw error;
+      toast.success('You have left the organisation');
+      window.location.href = '/app/dashboard'; // full reload to trigger fetch of remaining available businesses
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to leave organisation');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!business) return null;
 
   return (
@@ -272,6 +304,57 @@ export default function Settings() {
                     Connect Gmail
                   </Button>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white shadow sm:rounded-lg border border-red-200 overflow-hidden">
+        <div className="px-4 py-5 sm:p-6">
+          <h3 className="text-lg font-medium leading-6 text-red-600">Danger Zone</h3>
+          <div className="mt-2 max-w-xl text-sm text-neutral-500">
+            <p>Irreversible actions for this organisation workspace.</p>
+          </div>
+          
+          <div className="mt-6 border-t border-red-100 pt-6 space-y-4">
+            {role === 'owner' && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-medium text-neutral-900">Archive Organisation</h4>
+                  <p className="text-sm text-neutral-500 mt-1">
+                    Mark this workspace as archived. It will stop all automations and disappear from the switcher.
+                  </p>
+                </div>
+                <div className="ml-4 flex-shrink-0">
+                  <Button 
+                    variant="outline" 
+                    className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                    onClick={handleArchive}
+                    disabled={isLoading}
+                  >
+                    Archive
+                  </Button>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-medium text-neutral-900">Leave Organisation</h4>
+                <p className="text-sm text-neutral-500 mt-1">
+                  Remove yourself from this workspace. You will instantly lose access to all data.
+                </p>
+              </div>
+              <div className="ml-4 flex-shrink-0">
+                <Button 
+                  variant="outline" 
+                  className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                  onClick={handleLeave}
+                  disabled={isLoading}
+                >
+                  Leave
+                </Button>
               </div>
             </div>
           </div>

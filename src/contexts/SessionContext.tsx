@@ -9,12 +9,14 @@ export type Business = {
   default_currency: string;
   timezone: string;
   country: string;
+  archived_at?: string | null;
 };
 
 export type Membership = {
   id: string;
   role: 'owner' | 'admin' | 'member' | 'viewer';
   business_id: string;
+  business?: Business;
 };
 
 type SessionContextType = {
@@ -23,46 +25,81 @@ type SessionContextType = {
   business: Business | null;
   membership: Membership | null;
   role: Membership['role'] | null;
+  availableBusinesses: Business[];
   isLoading: boolean;
   refreshBusinessContext: () => Promise<void>;
+  switchBusiness: (businessId: string) => void;
 };
 
 export const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
+const ACTIVE_BUSINESS_KEY = 'invoiceRescue_activeBusinessId';
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  
   const [business, setBusiness] = useState<Business | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
+  const [availableBusinesses, setAvailableBusinesses] = useState<Business[]>([]);
+  
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchBusinessContext = async (userId: string) => {
-    const { data: memberData, error: memberError } = await supabase
+    const { data: membersData, error: memberError } = await supabase
       .from('business_members')
-      .select('*')
-      .eq('user_id', userId)
-      .limit(1)
-      .maybeSingle();
+      .select('*, business:businesses(*)')
+      .eq('user_id', userId);
 
-    if (memberError || !memberData) {
+    if (memberError || !membersData || membersData.length === 0) {
       setBusiness(null);
       setMembership(null);
+      setAvailableBusinesses([]);
       return;
     }
 
-    setMembership(memberData as Membership);
-
-    const { data: businessData, error: businessError } = await supabase
-      .from('businesses')
-      .select('*')
-      .eq('id', memberData.business_id)
-      .maybeSingle();
-
-    if (!businessError && businessData) {
-      setBusiness(businessData as Business);
-    } else {
+    // Filter out archived businesses
+    const activeMemberships = membersData.filter(m => m.business && !m.business.archived_at);
+    
+    if (activeMemberships.length === 0) {
       setBusiness(null);
+      setMembership(null);
+      setAvailableBusinesses([]);
+      return;
     }
+
+    const businesses = activeMemberships.map(m => m.business as Business);
+    // Sort businesses by name
+    businesses.sort((a, b) => a.name.localeCompare(b.name));
+    setAvailableBusinesses(businesses);
+
+    let activeBusinessId = localStorage.getItem(ACTIVE_BUSINESS_KEY);
+    let currentMem = activeMemberships.find(m => m.business_id === activeBusinessId);
+
+    // If persisted ID is invalid or missing, default to the first available business
+    if (!currentMem) {
+      currentMem = activeMemberships[0];
+      activeBusinessId = currentMem.business_id;
+      if (activeBusinessId) {
+        localStorage.setItem(ACTIVE_BUSINESS_KEY, activeBusinessId);
+      }
+    }
+
+    setMembership(currentMem as Membership);
+    setBusiness(currentMem.business as Business);
+  };
+
+  const switchBusiness = (businessId: string) => {
+    if (business?.id === businessId) return; // already active
+
+    const targetBusiness = availableBusinesses.find(b => b.id === businessId);
+    if (!targetBusiness) return;
+
+    localStorage.setItem(ACTIVE_BUSINESS_KEY, businessId);
+    
+    // We do a hard reload to the dashboard to instantly wipe all TanStack Query cache 
+    // and reset all React state. This is the safest way to prevent cross-org data leaks.
+    window.location.href = '/app/dashboard';
   };
 
   const initSession = async () => {
@@ -76,6 +113,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } else {
       setBusiness(null);
       setMembership(null);
+      setAvailableBusinesses([]);
     }
     setIsLoading(false);
   };
@@ -84,9 +122,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     initSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (event === 'INITIAL_SESSION') return; // Already handled by initSession
+      if (event === 'INITIAL_SESSION') return; 
 
-      // Avoid triggering full fetch if only token refreshed
       if (newSession?.user?.id !== user?.id) {
           setIsLoading(true);
       }
@@ -97,6 +134,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       } else if (!newSession?.user) {
         setBusiness(null);
         setMembership(null);
+        setAvailableBusinesses([]);
       }
       setIsLoading(false);
     });
@@ -120,8 +158,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         business,
         membership,
         role: membership?.role ?? null,
+        availableBusinesses,
         isLoading,
         refreshBusinessContext,
+        switchBusiness,
       }}
     >
       {children}
