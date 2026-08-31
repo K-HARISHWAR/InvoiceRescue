@@ -7,7 +7,7 @@ import { ArrowRight, AlertCircle, Clock, CalendarDays } from "lucide-react"
 
 export function DailyBriefing() {
   const { data: briefing, isLoading } = useDailyBriefing()
-  const { business: currentBusiness } = useSession()
+  const { primaryEntity } = useSession()
 
   if (isLoading || !briefing) {
     return (
@@ -25,7 +25,7 @@ export function DailyBriefing() {
     )
   }
 
-  const currency = currentBusiness?.default_currency || 'INR'
+  const currency = primaryEntity?.currency || 'USD'
 
   const greeting = () => {
     const hour = new Date().getHours()

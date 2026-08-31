@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Plus, Edit2 } from 'lucide-react';
 import { toast } from 'sonner';
+
+import { EntityDialog } from './EntityDialog';
+import type { BusinessEntity } from '@/contexts/SessionContext';
 
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
@@ -14,15 +17,15 @@ import { Label } from '@/components/ui/label';
 
 const settingsSchema = z.object({
   name: z.string().min(2, 'Business name must be at least 2 characters'),
-  timezone: z.string().min(2, 'Timezone is required'),
-  currency: z.string().min(3, 'Currency code is required').max(3, 'Must be 3 letter code'),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 export default function Settings() {
-  const { business, role, refreshBusinessContext } = useSession();
+  const { business, role, entities, refreshBusinessContext } = useSession();
   const [isLoading, setIsLoading] = useState(false);
+  const [showEntityDialog, setShowEntityDialog] = useState(false);
+  const [editingEntity, setEditingEntity] = useState<BusinessEntity | null>(null);
 
   const { data: gmailConnection, isLoading: isCheckingGmail } = useGmailConnection(business?.id);
 
@@ -37,8 +40,6 @@ export default function Settings() {
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       name: '',
-      timezone: '',
-      currency: '',
     },
   });
 
@@ -46,8 +47,6 @@ export default function Settings() {
     if (business) {
       reset({
         name: business.name,
-        timezone: business.timezone,
-        currency: business.default_currency,
       });
     }
   }, [business, reset]);
@@ -61,8 +60,6 @@ export default function Settings() {
         .from('businesses')
         .update({
           name: data.name,
-          timezone: data.timezone,
-          default_currency: data.currency,
         })
         .eq('id', business.id);
 
@@ -129,14 +126,14 @@ export default function Settings() {
         <div className="px-4 py-5 sm:p-6">
           <h3 className="text-lg font-medium leading-6 text-neutral-900">General Information</h3>
           <div className="mt-2 max-w-xl text-sm text-neutral-500">
-            <p>Update your business name and localization settings.</p>
+            <p>Update your business name.</p>
           </div>
           
           <form className="mt-6 space-y-6" onSubmit={handleSubmit(onSubmit)}>
             <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
               
               <div className="sm:col-span-4">
-                <Label htmlFor="name">Business Name</Label>
+                <Label htmlFor="name">Workspace Name</Label>
                 <div className="mt-1">
                   <Input
                     id="name"
@@ -145,34 +142,6 @@ export default function Settings() {
                   />
                   {errors.name && (
                     <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="sm:col-span-3">
-                <Label htmlFor="timezone">Timezone</Label>
-                <div className="mt-1">
-                  <Input
-                    id="timezone"
-                    disabled={!canEdit || isLoading}
-                    {...register('timezone')}
-                  />
-                  {errors.timezone && (
-                    <p className="mt-1 text-sm text-red-600">{errors.timezone.message}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="sm:col-span-3">
-                <Label htmlFor="currency">Default Currency</Label>
-                <div className="mt-1">
-                  <Input
-                    id="currency"
-                    disabled={!canEdit || isLoading}
-                    {...register('currency')}
-                  />
-                  {errors.currency && (
-                    <p className="mt-1 text-sm text-red-600">{errors.currency.message}</p>
                   )}
                 </div>
               </div>
@@ -206,6 +175,84 @@ export default function Settings() {
             )}
 
           </form>
+        </div>
+      </div>
+
+      <div className="bg-white shadow sm:rounded-lg border border-neutral-200 overflow-hidden">
+        <div className="px-4 py-5 sm:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-medium leading-6 text-neutral-900">Legal Entities</h3>
+              <div className="mt-1 max-w-xl text-sm text-neutral-500">
+                <p>Manage the legal entities and subsidiaries for this workspace.</p>
+              </div>
+            </div>
+            {canEdit && (
+              <Button 
+                onClick={() => {
+                  setEditingEntity(null);
+                  setShowEntityDialog(true);
+                }}
+                size="sm"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Entity
+              </Button>
+            )}
+          </div>
+          
+          <div className="mt-6 flex flex-col">
+            <div className="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
+              <div className="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+                <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                  <table className="min-w-full divide-y divide-neutral-300">
+                    <thead className="bg-neutral-50">
+                      <tr>
+                        <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-neutral-900 sm:pl-6">Display Name</th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-neutral-900">Legal Name</th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-neutral-900">Country</th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-neutral-900">Currency</th>
+                        <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                          <span className="sr-only">Edit</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-200 bg-white">
+                      {entities.map((entity) => (
+                        <tr key={entity.id}>
+                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-neutral-900 sm:pl-6">
+                            {entity.name}
+                            {entity.is_primary && (
+                              <span className="ml-2 inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                                Primary
+                              </span>
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-neutral-500">{entity.legal_name || '-'}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-neutral-500">{entity.country}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-neutral-500">{entity.currency}</td>
+                          <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingEntity(entity);
+                                  setShowEntityDialog(true);
+                                }}
+                                className="text-primary hover:text-primary/80 flex items-center justify-end w-full"
+                              >
+                                <Edit2 className="h-4 w-4 mr-1" /> Edit
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -360,6 +407,12 @@ export default function Settings() {
           </div>
         </div>
       </div>
+
+      <EntityDialog 
+        open={showEntityDialog}
+        onOpenChange={setShowEntityDialog}
+        entity={editingEntity}
+      />
     </div>
   );
 }

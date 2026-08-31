@@ -20,6 +20,7 @@ import { type ExtractedInvoiceData, type DocumentDetails } from './types';
 import { type PaymentStatus, type CollectionStage } from '@/hooks/useInvoices';
 
 const invoiceSchema = z.object({
+  entity_id: z.string().min(1, 'Issuing entity is required'),
   customer_id: z.string().min(1, 'Please select a customer'),
   invoice_number: z.string().min(1, 'Invoice number is required'),
   invoice_date: z.string().min(1, 'Invoice date is required'),
@@ -43,7 +44,7 @@ export default function InvoiceForm() {
   const [pendingDocument, setPendingDocument] = useState<DocumentDetails | null>(null);
   const [extractionWarnings, setExtractionWarnings] = useState<string[]>([]);
   
-  const { business, user } = useSession();
+  const { business, user, entities, primaryEntity } = useSession();
   const { customers, isLoading: isLoadingCustomers } = useCustomers();
   const { createInvoice, updateInvoice } = useInvoices();
 
@@ -51,11 +52,12 @@ export default function InvoiceForm() {
     resolver: zodResolver(invoiceSchema) as any,
     defaultValues: {
       customer_id: preselectedCustomer || '',
+      entity_id: primaryEntity?.id || '',
       invoice_number: '',
       invoice_date: format(new Date(), 'yyyy-MM-dd'),
       payment_terms_days: 30,
       due_date: format(addDays(new Date(), 30), 'yyyy-MM-dd'),
-      currency: 'INR',
+      currency: primaryEntity?.currency || 'USD',
       subtotal: 0,
       tax_amount: 0,
       total_amount: 0,
@@ -67,6 +69,17 @@ export default function InvoiceForm() {
   const watchPaymentTerms = watch('payment_terms_days');
   const watchSubtotal = watch('subtotal');
   const watchTax = watch('tax_amount');
+  const watchEntityId = watch('entity_id');
+
+  // Auto-update currency when entity changes
+  useEffect(() => {
+    if (watchEntityId && entities.length > 0) {
+      const selectedEntity = entities.find(e => e.id === watchEntityId);
+      if (selectedEntity) {
+        setValue('currency', selectedEntity.currency);
+      }
+    }
+  }, [watchEntityId, entities, setValue]);
 
   // Auto-calculate total amount
   useEffect(() => {
@@ -109,11 +122,12 @@ export default function InvoiceForm() {
 
     reset({
       customer_id: matchedCustomerId || '',
+      entity_id: primaryEntity?.id || '',
       invoice_number: data.invoice_number || '',
       invoice_date: data.invoice_date || format(new Date(), 'yyyy-MM-dd'),
       payment_terms_days: data.payment_terms_days || 30,
       due_date: data.due_date || format(addDays(new Date(), 30), 'yyyy-MM-dd'),
-      currency: data.currency || 'INR',
+      currency: primaryEntity?.currency || data.currency || 'USD',
       subtotal: data.subtotal || 0,
       tax_amount: data.tax_amount || 0,
       total_amount: data.total_amount || 0,
@@ -235,6 +249,24 @@ export default function InvoiceForm() {
 
               <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
                 <div className="sm:col-span-3">
+                  <Label htmlFor="entity_id">
+                    Issuing Entity <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="mt-1">
+                    <select
+                      id="entity_id"
+                      className="block w-full rounded-md border-neutral-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm h-10 border px-3"
+                      {...register('entity_id')}
+                    >
+                      {entities.map((e) => (
+                        <option key={e.id} value={e.id}>{e.name} {e.is_primary ? '(Primary)' : ''}</option>
+                      ))}
+                    </select>
+                    {errors.entity_id && <p className="mt-1 text-sm text-red-600">{errors.entity_id.message as string}</p>}
+                  </div>
+                </div>
+
+                <div className="sm:col-span-3">
                   <Label htmlFor="customer_id">
                     Customer <span className="text-red-500">*</span>
                   </Label>
@@ -299,7 +331,7 @@ export default function InvoiceForm() {
                   <div className="sm:col-span-1">
                     <Label htmlFor="currency">Currency</Label>
                     <div className="mt-1">
-                      <Input id="currency" {...register('currency')} />
+                      <Input id="currency" className="bg-neutral-50 text-neutral-500 cursor-not-allowed" readOnly {...register('currency')} />
                     </div>
                   </div>
 

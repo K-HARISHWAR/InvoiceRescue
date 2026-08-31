@@ -12,6 +12,19 @@ export type Business = {
   archived_at?: string | null;
 };
 
+export type BusinessEntity = {
+  id: string;
+  business_id: string;
+  name: string;
+  legal_name: string | null;
+  country: string;
+  currency: string;
+  timezone: string;
+  gstin: string | null;
+  udyam_number: string | null;
+  is_primary: boolean;
+};
+
 export type Membership = {
   id: string;
   role: 'owner' | 'admin' | 'member' | 'viewer';
@@ -26,6 +39,8 @@ type SessionContextType = {
   membership: Membership | null;
   role: Membership['role'] | null;
   availableBusinesses: Business[];
+  entities: BusinessEntity[];
+  primaryEntity: BusinessEntity | null;
   isLoading: boolean;
   refreshBusinessContext: () => Promise<void>;
   switchBusiness: (businessId: string) => void;
@@ -42,6 +57,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [business, setBusiness] = useState<Business | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
   const [availableBusinesses, setAvailableBusinesses] = useState<Business[]>([]);
+  const [entities, setEntities] = useState<BusinessEntity[]>([]);
+  const [primaryEntity, setPrimaryEntity] = useState<BusinessEntity | null>(null);
   
   const [isLoading, setIsLoading] = useState(true);
 
@@ -55,6 +72,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setBusiness(null);
       setMembership(null);
       setAvailableBusinesses([]);
+      setEntities([]);
+      setPrimaryEntity(null);
       return;
     }
 
@@ -65,6 +84,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setBusiness(null);
       setMembership(null);
       setAvailableBusinesses([]);
+      setEntities([]);
+      setPrimaryEntity(null);
       return;
     }
 
@@ -84,6 +105,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem(ACTIVE_BUSINESS_KEY, activeBusinessId);
       }
     }
+
+    // Fetch entities for the active business
+    const { data: entitiesData } = await supabase
+      .from('business_entities')
+      .select('*')
+      .eq('business_id', currentMem.business_id);
+      
+    const fetchedEntities = (entitiesData || []) as BusinessEntity[];
+    setEntities(fetchedEntities);
+    setPrimaryEntity(fetchedEntities.find(e => e.is_primary) || fetchedEntities[0] || null);
 
     setMembership(currentMem as Membership);
     setBusiness(currentMem.business as Business);
@@ -114,6 +145,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setBusiness(null);
       setMembership(null);
       setAvailableBusinesses([]);
+      setEntities([]);
+      setPrimaryEntity(null);
     }
     setIsLoading(false);
   };
@@ -135,6 +168,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setBusiness(null);
         setMembership(null);
         setAvailableBusinesses([]);
+        setEntities([]);
+        setPrimaryEntity(null);
       }
       setIsLoading(false);
     });
@@ -159,6 +194,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         membership,
         role: membership?.role ?? null,
         availableBusinesses,
+        entities,
+        primaryEntity,
         isLoading,
         refreshBusinessContext,
         switchBusiness,
