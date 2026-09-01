@@ -20,7 +20,7 @@ export default function ProtectedRoute() {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (!business && location.pathname !== '/onboarding') {
+  if (!business && location.pathname !== '/onboarding' && location.pathname !== '/app/invite') {
     return <Navigate to="/onboarding" replace />;
   }
 

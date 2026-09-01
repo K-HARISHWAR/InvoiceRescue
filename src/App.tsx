@@ -23,6 +23,8 @@ import CustomerDetail from '@/features/customers/CustomerDetail'
 import ActionCenter from '@/features/collections/ActionCenter'
 import Recovery from '@/features/recovery/Recovery'
 import Settings from '@/features/settings/Settings'
+import TeamManagement from '@/features/team/TeamManagement'
+import AcceptInvitation from '@/features/team/AcceptInvitation'
 
 const queryClient = new QueryClient()
 
@@ -44,6 +46,7 @@ export default function App() {
 
             {/* App is protected and requires a business */}
             <Route path="/app" element={<ProtectedRoute />}>
+              <Route path="invite" element={<AcceptInvitation />} />
               <Route element={<AppLayout />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
@@ -54,6 +57,7 @@ export default function App() {
                 <Route path="customers/:customerId" element={<CustomerDetail />} />
                 <Route path="actions" element={<ActionCenter />} />
                 <Route path="recovery" element={<Recovery />} />
+                <Route path="team" element={<TeamManagement />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
             </Route>

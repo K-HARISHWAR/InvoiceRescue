@@ -10,6 +10,7 @@ import type { BusinessEntity } from '@/contexts/SessionContext';
 
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useGmailConnection } from '@/hooks/useGmailConnection';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,8 +29,9 @@ export default function Settings() {
   const [editingEntity, setEditingEntity] = useState<BusinessEntity | null>(null);
 
   const { data: gmailConnection, isLoading: isCheckingGmail } = useGmailConnection(business?.id);
+  const { can } = usePermissions();
 
-  const canEdit = role === 'owner' || role === 'admin';
+  const canEdit = can('settings.manage');
 
   const {
     register,
@@ -365,7 +367,7 @@ export default function Settings() {
           </div>
           
           <div className="mt-6 border-t border-red-100 pt-6 space-y-4">
-            {role === 'owner' && (
+            {can('workspace.delete') && (
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-sm font-medium text-neutral-900">Archive Organisation</h4>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,6 +23,12 @@ export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  const returnTo = searchParams.get('returnTo');
+  const stateFrom = location.state?.from;
+  const from = returnTo || (stateFrom ? `${stateFrom.pathname}${stateFrom.search}` : '/onboarding');
 
   const {
     register,
@@ -59,7 +65,7 @@ export default function Signup() {
       }
 
       toast.success('Account created successfully!');
-      navigate('/onboarding', { replace: true });
+      navigate(from, { replace: true });
     } catch (err) {
       toast.error('An unexpected error occurred. Please try again.');
     } finally {
@@ -174,7 +180,7 @@ export default function Signup() {
             </div>
 
             <div className="mt-6">
-              <Link to="/login">
+              <Link to={`/login?returnTo=${encodeURIComponent(from)}`}>
                 <Button variant="outline" className="w-full">
                   Sign in
                 </Button>

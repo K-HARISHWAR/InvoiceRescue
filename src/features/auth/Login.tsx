@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,8 +23,11 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
 
-  const from = location.state?.from?.pathname || '/app/dashboard';
+  const returnTo = searchParams.get('returnTo');
+  const stateFrom = location.state?.from;
+  const from = returnTo || (stateFrom ? `${stateFrom.pathname}${stateFrom.search}` : '/app/dashboard');
 
   const {
     register,
@@ -167,7 +170,7 @@ export default function Login() {
             </div>
 
             <div className="mt-6">
-              <Link to="/signup">
+              <Link to={`/signup?returnTo=${encodeURIComponent(from)}`}>
                 <Button variant="outline" className="w-full">
                   Create an account
                 </Button>

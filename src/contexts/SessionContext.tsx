@@ -27,7 +27,7 @@ export type BusinessEntity = {
 
 export type Membership = {
   id: string;
-  role: 'owner' | 'admin' | 'member' | 'viewer';
+  role: 'owner' | 'admin' | 'finance_manager' | 'collections_agent' | 'viewer';
   business_id: string;
   business?: Business;
 };

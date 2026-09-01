@@ -9,6 +9,7 @@ const navItems = [
   { name: "Customers", href: "/app/customers", icon: Users },
   { name: "Action Center", href: "/app/actions", icon: Activity },
   { name: "Recovery", href: "/app/recovery", icon: ShieldAlert },
+  { name: "Team", href: "/app/team", icon: Users },
   { name: "Settings", href: "/app/settings", icon: Settings },
 ]
 
