@@ -15,6 +15,13 @@ import PageHeader from '@/components/common/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import InvoiceUpload from './components/InvoiceUpload';
 import { type ExtractedInvoiceData, type DocumentDetails } from './types';
 import { type PaymentStatus, type CollectionStage } from '@/hooks/useInvoices';
@@ -43,6 +50,8 @@ export default function InvoiceForm() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [pendingDocument, setPendingDocument] = useState<DocumentDetails | null>(null);
   const [extractionWarnings, setExtractionWarnings] = useState<string[]>([]);
+  const [duplicateWarning, setDuplicateWarning] = useState(false);
+  const [pendingData, setPendingData] = useState<InvoiceFormValues | null>(null);
   
   const { business, user, entities, primaryEntity } = useSession();
   const { customers, isLoading: isLoadingCustomers } = useCustomers();
@@ -140,7 +149,7 @@ export default function InvoiceForm() {
     toast.success('Invoice data extracted. Please review the details.');
   };
 
-  const onSubmit = async (data: z.infer<typeof invoiceSchema>) => {
+  const executeSubmit = async (data: InvoiceFormValues) => {
     try {
       // Determine final due date logic (prefer explicit over calculated if provided, though we auto-calc above anyway)
       let finalDueDate = data.due_date;
@@ -179,11 +188,31 @@ export default function InvoiceForm() {
       }
       
       toast.success('Invoice saved successfully');
+      setDuplicateWarning(false);
+      setPendingData(null);
       navigate(`/app/invoices/${resultId}`);
     } catch (error) {
       toast.error('Failed to create invoice');
       console.error(error);
     }
+  };
+
+  const onSubmit = async (data: z.infer<typeof invoiceSchema>) => {
+    // Check for duplicate invoice number
+    const { data: existing } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('entity_id', data.entity_id)
+      .eq('invoice_number', data.invoice_number)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      setPendingData(data);
+      setDuplicateWarning(true);
+      return;
+    }
+
+    await executeSubmit(data);
   };
 
   return (
@@ -385,6 +414,24 @@ export default function InvoiceForm() {
           </div>
         </div>
       )}
+
+      <Dialog open={duplicateWarning} onOpenChange={setDuplicateWarning}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-amber-600">Duplicate Invoice Warning</DialogTitle>
+            <DialogDescription>
+              An invoice with the number "{pendingData?.invoice_number}" already exists for this issuing entity. 
+              Are you sure you want to create a duplicate?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setDuplicateWarning(false)}>Cancel</Button>
+            <Button variant="default" onClick={() => pendingData && executeSubmit(pendingData)} disabled={createInvoice.isPending || updateInvoice.isPending}>
+              {(createInvoice.isPending || updateInvoice.isPending) ? 'Saving...' : 'Save Anyway'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

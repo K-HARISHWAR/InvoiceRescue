@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import { ArrowLeft, Building2, FileText, IndianRupee, MessageSquare, ListTodo, Plus, CheckCircle2, Inbox, Send, Bot } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 
-import { useInvoice } from '@/hooks/useInvoices';
+import { useInvoice, useInvoices } from '@/hooks/useInvoices';
 import { usePayments } from '@/hooks/usePayments';
 import { useCommunications } from '@/hooks/useCommunications';
 import { useRecoveryPack } from '@/hooks/useRecoveryPack';
@@ -29,9 +30,11 @@ import {
 import PaymentForm from '@/features/payments/PaymentForm';
 import InvoiceUpload from './components/InvoiceUpload';
 import { RecoveryPreviewModal } from '@/features/recovery/components/RecoveryPreviewModal';
-import { Archive } from 'lucide-react';
+import { Archive, Pencil, History as HistoryIcon } from 'lucide-react';
+import { InvoiceRevisions } from './components/InvoiceRevisions';
+import { EditInvoiceDialog } from './components/EditInvoiceDialog';
 
-type Tab = 'overview' | 'timeline' | 'documents' | 'communication' | 'payments' | 'actions';
+type Tab = 'overview' | 'timeline' | 'documents' | 'communication' | 'payments' | 'actions' | 'history';
 
 export default function InvoiceDetail() {
   const { invoiceId } = useParams();
@@ -43,6 +46,10 @@ export default function InvoiceDetail() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
+  const [isVoidDialogOpen, setIsVoidDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [voidReason, setVoidReason] = useState('');
+  const { voidInvoice: doVoid } = useInvoices();
 
   if (isLoading) return <div className="p-8 text-center text-neutral-500">Loading invoice...</div>;
   if (isError || !invoice) return <div className="p-8 text-center text-red-500">Error loading invoice.</div>;
@@ -58,7 +65,23 @@ export default function InvoiceDetail() {
     { id: 'communication', label: 'Communication', icon: <MessageSquare className="h-4 w-4 mr-2" /> },
     { id: 'payments', label: 'Payments', icon: <IndianRupee className="h-4 w-4 mr-2" /> },
     { id: 'actions', label: 'Action Center', icon: <CheckCircle2 className="h-4 w-4 mr-2" /> },
+    { id: 'history', label: 'History', icon: <HistoryIcon className="h-4 w-4 mr-2" /> },
   ];
+
+  const handleVoid = async () => {
+    if (!voidReason.trim()) {
+      toast.error('A reason is required to void this invoice.');
+      return;
+    }
+    try {
+      await doVoid.mutateAsync({ id: invoice.id, reason: voidReason });
+      toast.success('Invoice voided successfully');
+      setIsVoidDialogOpen(false);
+      setVoidReason('');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to void invoice');
+    }
+  };
 
   return (
     <div className="space-y-6 pb-20">
@@ -66,22 +89,34 @@ export default function InvoiceDetail() {
         <Link to="/app/invoices" className="flex items-center text-sm text-neutral-500 hover:text-neutral-900 transition-colors">
           <ArrowLeft className="mr-1 h-4 w-4" /> Back to Invoices
         </Link>
-        <Button 
-          variant={(invoice.risk_level === 'high' || invoice.risk_level === 'critical') ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setIsRecoveryModalOpen(true)}
-          className={invoice.risk_level === 'high' || invoice.risk_level === 'critical' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
-        >
-          <Archive className="mr-2 h-4 w-4" /> Generate Recovery Pack
-        </Button>
+        <div className="flex gap-2">
+          {invoice.payment_status !== 'void' && invoice.payment_status !== 'paid' && (
+            <Button variant="outline" size="sm" onClick={() => setIsVoidDialogOpen(true)} className="text-red-600 hover:text-red-700">
+              Void
+            </Button>
+          )}
+          <Button 
+            variant={(invoice.risk_level === 'high' || invoice.risk_level === 'critical') ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setIsRecoveryModalOpen(true)}
+            className={invoice.risk_level === 'high' || invoice.risk_level === 'critical' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+          >
+            <Archive className="mr-2 h-4 w-4" /> Generate Recovery Pack
+          </Button>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg border border-neutral-200 shadow-sm p-6">
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl font-bold text-neutral-900">
+              <h1 className="text-2xl font-bold text-neutral-900 flex items-center gap-2">
                 {invoice.invoice_number || 'Draft Invoice'}
+                {invoice.payment_status !== 'paid' && invoice.payment_status !== 'void' && (
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-400 hover:text-blue-600" onClick={() => setIsEditDialogOpen(true)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
               </h1>
               <StatusBadge status={invoice.payment_status as any} />
               {invoice.risk_level && <RiskBadge level={invoice.risk_level as any} />}
@@ -330,7 +365,44 @@ export default function InvoiceDetail() {
             </Link>
           </div>
         )}
+
+        {activeTab === 'history' && (
+          <InvoiceRevisions invoiceId={invoice.id} />
+        )}
       </div>
+
+      <EditInvoiceDialog 
+        invoice={invoice as any} 
+        open={isEditDialogOpen} 
+        onOpenChange={setIsEditDialogOpen} 
+      />
+
+      <Dialog open={isVoidDialogOpen} onOpenChange={setIsVoidDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Void Invoice</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to void this invoice? This will zero out the outstanding balance and cancel all active collection communications. This action is auditable.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="block text-sm font-medium text-neutral-700 mb-1">Reason for voiding <span className="text-red-500">*</span></label>
+            <textarea
+              className="w-full rounded-md border border-neutral-300 p-2 text-sm focus:ring-2 focus:ring-blue-600 outline-none"
+              rows={3}
+              placeholder="e.g. Created in error, customer disputes entirety, superseded by INV-1045..."
+              value={voidReason}
+              onChange={(e) => setVoidReason(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsVoidDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleVoid} disabled={doVoid.isPending || !voidReason.trim()}>
+              {doVoid.isPending ? 'Voiding...' : 'Void Invoice'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
