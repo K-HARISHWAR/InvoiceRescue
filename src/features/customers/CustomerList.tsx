@@ -28,6 +28,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { MoreHorizontal, Archive, Merge } from 'lucide-react';
+import { MoneyDisplay } from '@/lib/formatting/MoneyDisplay';
 
 const customerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -41,9 +50,12 @@ const customerSchema = z.object({
 type CustomerFormValues = z.infer<typeof customerSchema>;
 
 export default function CustomerList() {
-  const { customers, isLoading, createCustomer } = useCustomers();
+  const { customers, isLoading, createCustomer, archiveCustomer, mergeCustomers } = useCustomers();
   const [search, setSearch] = useState('');
   const [isNewDialogOpen, setIsNewDialogOpen] = useState(false);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
+  const [targetMergeId, setTargetMergeId] = useState<string | null>(null);
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
@@ -61,6 +73,39 @@ export default function CustomerList() {
     }
   };
 
+  const toggleSelection = (id: string) => {
+    setSelectedCustomerIds(prev => 
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleArchive = async (id: string) => {
+    if (!confirm('Are you sure you want to archive this customer?')) return;
+    try {
+      await archiveCustomer.mutateAsync(id);
+      toast.success('Customer archived');
+      setSelectedCustomerIds(prev => prev.filter(x => x !== id));
+    } catch (e: any) {
+      toast.error('Failed to archive customer');
+    }
+  };
+
+  const handleMerge = async () => {
+    if (!targetMergeId || selectedCustomerIds.length !== 2) return;
+    const sourceId = selectedCustomerIds.find(id => id !== targetMergeId);
+    if (!sourceId) return;
+
+    try {
+      await mergeCustomers.mutateAsync({ targetId: targetMergeId, sourceId });
+      toast.success('Customers merged successfully');
+      setIsMergeDialogOpen(false);
+      setSelectedCustomerIds([]);
+      setTargetMergeId(null);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to merge customers');
+    }
+  };
+
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(search.toLowerCase()) || 
     (c.company_name && c.company_name.toLowerCase().includes(search.toLowerCase())) ||
@@ -73,10 +118,18 @@ export default function CustomerList() {
         title="Customers" 
         description="Manage your clients and view their performance."
         actions={
-          <Button onClick={() => setIsNewDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Customer
-          </Button>
+          <div className="flex gap-2">
+            {selectedCustomerIds.length === 2 && (
+              <Button onClick={() => setIsMergeDialogOpen(true)} variant="secondary">
+                <Merge className="mr-2 h-4 w-4" />
+                Merge
+              </Button>
+            )}
+            <Button onClick={() => setIsNewDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Customer
+            </Button>
+          </div>
         }
       />
 
@@ -94,10 +147,12 @@ export default function CustomerList() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]"></TableHead>
               <TableHead>Customer</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead className="text-right">Open Invoices</TableHead>
-              <TableHead className="text-right">Outstanding</TableHead>
+              <TableHead className="text-center w-[120px]">Open Invoices</TableHead>
+              <TableHead className="text-right w-[150px]">Outstanding</TableHead>
+              <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -118,11 +173,15 @@ export default function CustomerList() {
                 const invoices: Invoice[] = (customer as Customer & { invoices: Invoice[] }).invoices || [];
                 const openInvoices = invoices.filter(i => ['open', 'partial', 'disputed'].includes(i.payment_status));
                 const outstanding = openInvoices.reduce((sum, i) => sum + Number(i.outstanding_amount), 0);
-                // We'll use formatting soon, but just standard JS for now
-                const formattedOutstanding = new Intl.NumberFormat('en-IN', { style: 'currency', currency: invoices[0]?.currency || 'INR' }).format(outstanding);
 
                 return (
-                  <TableRow key={customer.id}>
+                  <TableRow key={customer.id} className={selectedCustomerIds.includes(customer.id) ? 'bg-muted/50' : ''}>
+                    <TableCell>
+                      <Checkbox 
+                        checked={selectedCustomerIds.includes(customer.id)}
+                        onCheckedChange={() => toggleSelection(customer.id)}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
                       <Link to={`/app/customers/${customer.id}`} className="text-blue-600 hover:underline flex items-center">
                         <Building2 className="mr-2 h-4 w-4 text-neutral-400" />
@@ -142,8 +201,26 @@ export default function CustomerList() {
                         <span className="text-neutral-400 text-xs italic">Not provided</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">{openInvoices.length}</TableCell>
-                    <TableCell className="text-right font-medium">{formattedOutstanding}</TableCell>
+                    <TableCell className="text-center">
+                      {openInvoices.length}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex justify-end pr-2">
+                        <MoneyDisplay amount={outstanding} currency={invoices[0]?.currency || 'INR'} />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="h-8 w-8 p-0 inline-flex items-center justify-center rounded-md hover:bg-neutral-100">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleArchive(customer.id)} className="text-destructive">
+                            <Archive className="mr-2 h-4 w-4" /> Archive
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                   </TableRow>
                 );
               })
@@ -186,6 +263,46 @@ export default function CustomerList() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isMergeDialogOpen} onOpenChange={setIsMergeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Merge Customers</DialogTitle>
+            <DialogDescription>
+              Select the primary customer that will survive the merge. The other will be archived, and all its records will be moved to the primary customer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            {selectedCustomerIds.map(id => {
+              const cust = customers.find(c => c.id === id);
+              if (!cust) return null;
+              return (
+                <div 
+                  key={id} 
+                  className={`p-3 border rounded-md cursor-pointer flex justify-between items-center ${targetMergeId === id ? 'border-primary bg-primary/5' : ''}`}
+                  onClick={() => setTargetMergeId(id)}
+                >
+                  <div>
+                    <div className="font-medium">{cust.name}</div>
+                    <div className="text-xs text-muted-foreground">{cust.primary_email || 'No email'}</div>
+                  </div>
+                  {targetMergeId === id && <div className="text-xs font-bold text-primary">Target</div>}
+                </div>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsMergeDialogOpen(false)}>Cancel</Button>
+            <Button 
+              variant="default" 
+              onClick={handleMerge}
+              disabled={!targetMergeId || mergeCustomers.isPending}
+            >
+              {mergeCustomers.isPending ? 'Merging...' : 'Merge'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

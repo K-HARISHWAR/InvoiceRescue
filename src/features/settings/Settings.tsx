@@ -23,7 +23,7 @@ const settingsSchema = z.object({
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 export default function Settings() {
-  const { business, role, entities, refreshBusinessContext } = useSession();
+  const { business, entities, refreshBusinessContext } = useSession();
   const [isLoading, setIsLoading] = useState(false);
   const [showEntityDialog, setShowEntityDialog] = useState(false);
   const [editingEntity, setEditingEntity] = useState<BusinessEntity | null>(null);

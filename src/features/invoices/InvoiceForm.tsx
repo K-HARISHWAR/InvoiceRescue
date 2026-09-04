@@ -79,6 +79,7 @@ export default function InvoiceForm() {
   const watchSubtotal = watch('subtotal');
   const watchTax = watch('tax_amount');
   const watchEntityId = watch('entity_id');
+  const watchCustomerId = watch('customer_id');
 
   // Auto-update currency when entity changes
   useEffect(() => {
@@ -89,6 +90,24 @@ export default function InvoiceForm() {
       }
     }
   }, [watchEntityId, entities, setValue]);
+
+  // Auto-apply customer defaults
+  useEffect(() => {
+    if (watchCustomerId && customers.length > 0 && mode === 'manual') {
+      const selectedCustomer = customers.find(c => c.id === watchCustomerId);
+      if (selectedCustomer) {
+        if (selectedCustomer.default_payment_terms_days != null) {
+          setValue('payment_terms_days', selectedCustomer.default_payment_terms_days);
+        }
+        if (selectedCustomer.preferred_currency) {
+          setValue('currency', selectedCustomer.preferred_currency);
+        }
+        if (selectedCustomer.default_entity_id) {
+          setValue('entity_id', selectedCustomer.default_entity_id);
+        }
+      }
+    }
+  }, [watchCustomerId, customers, setValue, mode]);
 
   // Auto-calculate total amount
   useEffect(() => {
@@ -119,6 +138,10 @@ export default function InvoiceForm() {
     
     // Auto-select customer if we can match the name
     let matchedCustomerId = '';
+    let defaultTerms = data.payment_terms_days || 30;
+    let defaultCurrency = primaryEntity?.currency || data.currency || 'USD';
+    let defaultEntity = primaryEntity?.id || '';
+
     if (data.customer_name) {
       const match = customers.find(c => 
         c.name.toLowerCase() === data.customer_name?.toLowerCase() ||
@@ -126,17 +149,20 @@ export default function InvoiceForm() {
       );
       if (match) {
         matchedCustomerId = match.id;
+        if (match.default_payment_terms_days != null) defaultTerms = match.default_payment_terms_days;
+        if (match.preferred_currency) defaultCurrency = match.preferred_currency;
+        if (match.default_entity_id) defaultEntity = match.default_entity_id;
       }
     }
 
     reset({
       customer_id: matchedCustomerId || '',
-      entity_id: primaryEntity?.id || '',
+      entity_id: defaultEntity || '',
       invoice_number: data.invoice_number || '',
       invoice_date: data.invoice_date || format(new Date(), 'yyyy-MM-dd'),
-      payment_terms_days: data.payment_terms_days || 30,
-      due_date: data.due_date || format(addDays(new Date(), 30), 'yyyy-MM-dd'),
-      currency: primaryEntity?.currency || data.currency || 'USD',
+      payment_terms_days: defaultTerms,
+      due_date: data.due_date || format(addDays(new Date(), defaultTerms), 'yyyy-MM-dd'),
+      currency: defaultCurrency,
       subtotal: data.subtotal || 0,
       tax_amount: data.tax_amount || 0,
       total_amount: data.total_amount || 0,
@@ -170,7 +196,12 @@ export default function InvoiceForm() {
 
       let resultId;
       if (draftId) {
-        await updateInvoice.mutateAsync({ id: draftId, updates: invoiceRecord });
+        await updateInvoice.mutateAsync({ 
+          id: draftId, 
+          updates: invoiceRecord,
+          expectedVersion: 1,
+          reason: "Draft finalized"
+        });
         resultId = draftId;
       } else {
         const result = await createInvoice.mutateAsync(invoiceRecord);

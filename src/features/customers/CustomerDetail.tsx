@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Mail, Phone, Building2, Edit2, FileText, IndianRupee, PieChart, Activity } from 'lucide-react';
+import { Mail, Phone, Building2, Edit2, FileText, IndianRupee, PieChart, Activity, Tag as TagIcon } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -15,13 +15,16 @@ import { RiskBadge } from '@/components/common/RiskBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Table,
@@ -33,6 +36,12 @@ import {
 } from '@/components/ui/table';
 import { MoneyDisplay } from '@/lib/formatting/MoneyDisplay';
 import { addDays, format } from 'date-fns';
+
+import { CustomerContacts } from './components/CustomerContacts';
+import { CustomerNotes } from './components/CustomerNotes';
+import { CustomerSettings } from './components/CustomerSettings';
+
+const AVAILABLE_TAGS = ['VIP', 'Government', 'Enterprise', 'Slow Payer', 'Strategic Account'];
 
 const customerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -91,20 +100,77 @@ export default function CustomerDetail() {
 
   const invoices: Invoice[] = (customer as Customer & { invoices: Invoice[] }).invoices || [];
 
+  const handleToggleTag = async (tag: string) => {
+    if (!customer) return;
+    const currentTags = customer.tags || [];
+    const newTags = currentTags.includes(tag)
+      ? currentTags.filter((t) => t !== tag)
+      : [...currentTags, tag];
+
+    try {
+      await updateCustomer.mutateAsync({ id: customer.id, updates: { tags: newTags } });
+    } catch (error) {
+      toast.error('Failed to update tags');
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       <PageHeader 
-        title={customer.name} 
+        title={
+          <div className="flex items-center gap-3">
+            <span>{customer.name}</span>
+            {customer.tags?.map((tag) => (
+              <Badge key={tag} variant="secondary" className="text-xs font-normal">{tag}</Badge>
+            ))}
+          </div>
+        } 
         description={customer.company_name || 'Customer Profile'}
         actions={
-          <Button onClick={openEditDialog} variant="outline">
-            <Edit2 className="mr-2 h-4 w-4" />
-            Edit Profile
-          </Button>
+          <div className="flex gap-2">
+            <Dialog>
+              <DialogTrigger render={<Button variant="outline" />}>
+                <TagIcon className="mr-2 h-4 w-4" />
+                Tags
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Manage Tags</DialogTitle></DialogHeader>
+                <div className="flex flex-wrap gap-2 py-4">
+                  {AVAILABLE_TAGS.map(tag => (
+                    <Badge 
+                      key={tag} 
+                      variant={customer.tags?.includes(tag) ? 'default' : 'outline'}
+                      className="cursor-pointer"
+                      onClick={() => handleToggleTag(tag)}
+                    >
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Button onClick={openEditDialog} variant="outline">
+              <Edit2 className="mr-2 h-4 w-4" />
+              Edit Profile
+            </Button>
+          </div>
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="mb-6">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="contacts">
+            Contacts {customer.customer_contacts?.length > 0 && `(${customer.customer_contacts.length})`}
+          </TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="notes">
+            Notes {customer.customer_notes?.length > 0 && `(${customer.customer_notes.length})`}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="col-span-1 space-y-6">
           <div className="bg-white rounded-lg border border-neutral-200 shadow-sm p-6">
             <h3 className="text-lg font-medium text-neutral-900 mb-4">Contact Information</h3>
@@ -270,7 +336,27 @@ export default function CustomerDetail() {
             )}
           </div>
         </div>
-      </div>
+        </div>
+        </TabsContent>
+
+        <TabsContent value="contacts">
+          <div className="bg-white rounded-lg border border-border p-6 shadow-sm">
+            <CustomerContacts customerId={customer.id} contacts={customer.customer_contacts || []} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="settings">
+          <div className="bg-white rounded-lg border border-border p-6 shadow-sm">
+            <CustomerSettings customer={customer} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="notes">
+          <div className="bg-white rounded-lg border border-border p-6 shadow-sm">
+            <CustomerNotes customerId={customer.id} notes={customer.customer_notes || []} />
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
