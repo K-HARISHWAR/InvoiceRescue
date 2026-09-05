@@ -65,8 +65,8 @@ export function CustomerSettings({ customer }: Props) {
           <div className="space-y-2">
             <Label htmlFor="currency">Preferred Currency</Label>
             <Select 
-              value={formData.preferred_currency} 
-              onValueChange={(v) => setFormData({ ...formData, preferred_currency: v })}
+              value={formData.preferred_currency || ''} 
+              onValueChange={(val) => setFormData(prev => ({ ...prev, preferred_currency: val || '' }))}
             >
               <SelectTrigger id="currency" className="w-full">
                 <SelectValue placeholder="Select currency" />

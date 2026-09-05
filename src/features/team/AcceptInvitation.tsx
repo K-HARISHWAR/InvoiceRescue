@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
@@ -76,15 +76,11 @@ export default function AcceptInvitation() {
               You need to sign in or create an account to accept this invitation.
             </p>
             <div className="flex justify-center gap-4">
-              <Button asChild variant="outline">
-                <Link to={`/login?returnTo=${encodeURIComponent(`/app/invite?token=${token}`)}`}>
-                  Log In
-                </Link>
+              <Button variant="outline" onClick={() => navigate(`/login?returnTo=${encodeURIComponent(`/app/invite?token=${token}`)}`)}>
+                Log In
               </Button>
-              <Button asChild>
-                <Link to={`/signup?returnTo=${encodeURIComponent(`/app/invite?token=${token}`)}`}>
-                  Create Account
-                </Link>
+              <Button onClick={() => navigate(`/signup?returnTo=${encodeURIComponent(`/app/invite?token=${token}`)}`)}>
+                Create Account
               </Button>
             </div>
           </div>

@@ -6,6 +6,7 @@ import { Loader2, Save, Plus, Edit2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { EntityDialog } from './EntityDialog';
+import { Link } from 'react-router-dom';
 import type { BusinessEntity } from '@/contexts/SessionContext';
 
 import { supabase } from '@/lib/supabase/client';
@@ -235,16 +236,12 @@ export default function Settings() {
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-neutral-500">{entity.currency}</td>
                           <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                             {canEdit && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingEntity(entity);
-                                  setShowEntityDialog(true);
-                                }}
+                              <Link
+                                to={`/app/settings/entities/${entity.id}`}
                                 className="text-primary hover:text-primary/80 flex items-center justify-end w-full"
                               >
-                                <Edit2 className="h-4 w-4 mr-1" /> Edit
-                              </button>
+                                <Edit2 className="h-4 w-4 mr-1" /> Manage
+                              </Link>
                             )}
                           </td>
                         </tr>

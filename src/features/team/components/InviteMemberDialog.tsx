@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
-import type { Role } from '@/lib/permissions';
 
 import {
   Dialog,

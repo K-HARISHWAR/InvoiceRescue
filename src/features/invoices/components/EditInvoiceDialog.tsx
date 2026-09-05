@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Calendar, Loader2, FileText, AlertCircle, IndianRupee, Building2, Calculator, Receipt } from 'lucide-react';
+import { Calendar, Loader2, AlertCircle, IndianRupee, Building2, Calculator, Receipt } from 'lucide-react';
 import { addDays, format, parseISO } from 'date-fns';
 
 import { useSession } from '@/hooks/useSession';
@@ -32,7 +32,6 @@ const invoiceSchema = z.object({
   tax_amount: z.coerce.number().min(0, 'Tax must be positive'),
   total_amount: z.coerce.number().min(0, 'Total must be positive'),
   payment_terms_days: z.coerce.number().int().optional(),
-  notes: z.string().optional(),
   reason: z.string().optional(),
 });
 
@@ -54,7 +53,7 @@ export function EditInvoiceDialog({ invoice, open, onOpenChange }: EditInvoiceDi
   const isDraft = invoice.payment_status === 'draft';
   const isPaidOrVoid = invoice.payment_status === 'paid' || invoice.payment_status === 'void';
 
-  const { register, handleSubmit, watch, setValue, reset, formState: { errors, isSubmitting } } = useForm<InvoiceFormValues>({
+  const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<InvoiceFormValues>({
     resolver: zodResolver(invoiceSchema) as any,
     defaultValues: {
       customer_id: invoice.customer_id,
@@ -67,7 +66,6 @@ export function EditInvoiceDialog({ invoice, open, onOpenChange }: EditInvoiceDi
       subtotal: invoice.subtotal,
       tax_amount: invoice.tax_amount,
       total_amount: invoice.total_amount,
-      notes: invoice.notes || '',
       reason: '',
     }
   });
@@ -127,8 +125,7 @@ export function EditInvoiceDialog({ invoice, open, onOpenChange }: EditInvoiceDi
           currency: data.currency,
           subtotal: data.subtotal,
           tax_amount: data.tax_amount,
-          total_amount: data.total_amount,
-          notes: data.notes
+          total_amount: data.total_amount
         }
       });
 
@@ -341,22 +338,8 @@ export function EditInvoiceDialog({ invoice, open, onOpenChange }: EditInvoiceDi
             </div>
           </div>
 
-          {/* Section 4: Additional Notes */}
-          <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-neutral-900 flex items-center gap-2 border-b border-neutral-100 pb-2">
-              <FileText className="h-4 w-4 text-neutral-400" />
-              Additional Details
-            </h4>
-            <div className="space-y-2">
-              <Label htmlFor="edit_notes" className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Notes / Description</Label>
-              <textarea
-                id="edit_notes"
-                rows={3}
-                className="flex w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500"
-                placeholder="Enter any additional notes..."
-                {...register('notes')}
-              />
-            </div>
+          {/* Section 4: Additional Details */}
+          <div className="grid grid-cols-1 gap-4">
           </div>
 
           {/* Section 5: Audit Reason (Only for non-drafts) */}

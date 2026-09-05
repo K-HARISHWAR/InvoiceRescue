@@ -23,6 +23,7 @@ import CustomerDetail from '@/features/customers/CustomerDetail'
 import ActionCenter from '@/features/collections/ActionCenter'
 import Recovery from '@/features/recovery/Recovery'
 import Settings from '@/features/settings/Settings'
+import EntitySettings from '@/features/settings/EntitySettings'
 import TeamManagement from '@/features/team/TeamManagement'
 import AcceptInvitation from '@/features/team/AcceptInvitation'
 
@@ -59,6 +60,7 @@ export default function App() {
                 <Route path="recovery" element={<Recovery />} />
                 <Route path="team" element={<TeamManagement />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="settings/entities/:entityId" element={<EntitySettings />} />
               </Route>
             </Route>
 

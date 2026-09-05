@@ -1,4 +1,3 @@
-import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { History as HistoryIcon, Loader2, ArrowRight } from 'lucide-react';

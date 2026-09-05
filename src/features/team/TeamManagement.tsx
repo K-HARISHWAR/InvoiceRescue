@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Loader2, UserPlus, Shield, X, Mail, ShieldAlert } from 'lucide-react';
+import { Loader2, UserPlus, Mail, ShieldAlert } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { supabase } from '@/lib/supabase/client';
