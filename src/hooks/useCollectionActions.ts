@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { actionKeys } from '@/lib/queryKeys';
 
-export type CollectionActionStatus = 'recommended' | 'draft' | 'approved' | 'sent' | 'skipped' | 'completed' | 'failed';
+export type CollectionActionStatus = 'recommended' | 'draft' | 'approved' | 'sent' | 'skipped' | 'completed' | 'failed' | 'snoozed';
 export type CollectionActionType = 'friendly_reminder' | 'due_date_reminder' | 'overdue_reminder' | 'promise_followup' | 'escalation' | 'document_request' | 'recovery_pack';
 
 export interface CollectionAction {
@@ -20,8 +20,16 @@ export interface CollectionAction {
   approved_at: string | null;
   executed_at: string | null;
   error_message: string | null;
+  assigned_to: string | null;
+  assigned_at: string | null;
+  assigned_by: string | null;
+  snooze_until: string | null;
   created_at: string;
   updated_at: string;
+  assignee?: {
+    email: string;
+    raw_user_meta_data?: { full_name?: string };
+  };
   invoices?: {
     invoice_number: string;
     total_amount: number;
@@ -161,6 +169,66 @@ export function useUpdateActionStatus() {
   });
 }
 
+export function useAssignAction() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ actionId, assignedTo }: { actionId: string; assignedTo: string | null }) => {
+      const { data, error } = await supabase
+        .from('collection_actions')
+        .update({
+          assigned_to: assignedTo,
+          assigned_at: assignedTo ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', actionId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: actionKeys.all });
+      toast.success('Assignment updated');
+    },
+    onError: (error) => {
+      console.error('Failed to assign action:', error);
+      toast.error('Failed to assign action');
+    }
+  });
+}
+
+export function useSnoozeAction() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ actionId, snoozeUntil }: { actionId: string; snoozeUntil: string }) => {
+      const { data, error } = await supabase
+        .from('collection_actions')
+        .update({
+          status: 'snoozed',
+          snooze_until: snoozeUntil,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', actionId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: actionKeys.all });
+      toast.success('Action snoozed');
+    },
+    onError: (error) => {
+      console.error('Failed to snooze action:', error);
+      toast.error('Failed to snooze action');
+    }
+  });
+}
+
 export function useSendGmailAction() {
   const queryClient = useQueryClient();
 
@@ -184,7 +252,13 @@ export function useSendGmailAction() {
     },
     onError: (error) => {
       console.error('Send email error:', error);
-      toast.error('Failed to send email: ' + error.message);
+      const isExpired = error.message?.includes('Token has been expired or revoked') || error.message?.includes('invalid_grant');
+      
+      if (isExpired) {
+        toast.error('Gmail connection expired. Please go to Settings > Gmail to reconnect your account.', { duration: 6000 });
+      } else {
+        toast.error('Failed to send email: ' + error.message);
+      }
     }
   });
 }
