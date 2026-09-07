@@ -22,12 +22,14 @@ import { ChevronLeft, ChevronRight, Download, Upload } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv';
 import { toast } from 'sonner';
 import InvoiceImportDialog from './components/InvoiceImportDialog';
+import PaymentImportDialog from '@/features/payments/PaymentImportDialog';
 
 type FilterType = 'all' | 'open' | 'due_soon' | 'overdue' | 'promise_pending' | 'high_risk' | 'paid' | 'disputed' | 'overdue_30' | 'critical_large' | 'my_accounts' | 'promises_today';
 
 export default function InvoiceList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showImport, setShowImport] = useState(false);
+  const [showPaymentImport, setShowPaymentImport] = useState(false);
   
   const search = searchParams.get('search') || '';
   const activeFilter = (searchParams.get('view') as FilterType) || 'all';
@@ -127,7 +129,11 @@ export default function InvoiceList() {
             </Button>
             <Button variant="outline" onClick={() => setShowImport(true)}>
               <Upload className="mr-2 h-4 w-4" />
-              Import CSV
+              Import Invoices
+            </Button>
+            <Button variant="outline" onClick={() => setShowPaymentImport(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import Payments
             </Button>
             <Link to="/app/invoices/new">
               <Button>
@@ -278,6 +284,13 @@ export default function InvoiceList() {
         onOpenChange={setShowImport}
         onSuccess={() => {
           window.location.reload();
+        }}
+      />
+      <PaymentImportDialog 
+        open={showPaymentImport} 
+        onOpenChange={setShowPaymentImport}
+        onSuccess={() => {
+          // Handled within
         }}
       />
     </div>

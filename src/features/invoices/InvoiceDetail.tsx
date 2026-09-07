@@ -5,7 +5,7 @@ import { ArrowLeft, Building2, FileText, IndianRupee, MessageSquare, ListTodo, P
 import { format, differenceInDays } from 'date-fns';
 
 import { useInvoice, useInvoices } from '@/hooks/useInvoices';
-import { usePayments } from '@/hooks/usePayments';
+import { usePayments, type Payment } from '@/hooks/usePayments';
 import { useCommunications } from '@/hooks/useCommunications';
 import { useRecoveryPack } from '@/hooks/useRecoveryPack';
 import { RiskBadge } from '@/components/common/RiskBadge';
@@ -45,6 +45,7 @@ export default function InvoiceDetail() {
   
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
   const [isVoidDialogOpen, setIsVoidDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -234,26 +235,50 @@ export default function InvoiceDetail() {
             ) : payments.length === 0 ? (
               <div className="p-8 text-center text-neutral-500">No payments recorded yet.</div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Reference</TableHead>
-                    <TableHead>Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {payments.map((payment) => (
-                    <TableRow key={payment.id}>
-                      <TableCell className="text-neutral-900">{format(new Date(payment.paid_at), 'dd MMM yyyy')}</TableCell>
-                      <TableCell className="font-medium text-green-600">{formatMoney(payment.amount)}</TableCell>
-                      <TableCell className="text-neutral-500">{payment.payment_reference || '-'}</TableCell>
-                      <TableCell className="text-neutral-500">{payment.notes || '-'}</TableCell>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Reference</TableHead>
+                      <TableHead>Notes</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {payments.map((payment) => (
+                      <TableRow key={payment.id}>
+                        <TableCell className="text-neutral-900">{format(new Date(payment.paid_at), 'dd MMM yyyy')}</TableCell>
+                        <TableCell className="font-medium text-green-600">{formatMoney(payment.amount)}</TableCell>
+                        <TableCell>
+                          <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
+                            payment.reconciliation_status === 'verified' ? 'bg-green-50 text-green-700 ring-green-600/20' :
+                            payment.reconciliation_status === 'matched' ? 'bg-blue-50 text-blue-700 ring-blue-600/20' :
+                            'bg-yellow-50 text-yellow-800 ring-yellow-600/20'
+                          }`}>
+                            {payment.reconciliation_status || 'verified'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-neutral-500">{payment.payment_reference || '-'}</TableCell>
+                        <TableCell className="text-neutral-500">{payment.notes || '-'}</TableCell>
+                        <TableCell className="text-right">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              setEditingPayment(payment);
+                              setIsPaymentDialogOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4 text-neutral-500 hover:text-neutral-900" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
             )}
           </div>
         )}
@@ -404,19 +429,29 @@ export default function InvoiceDetail() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+      <Dialog open={isPaymentDialogOpen} onOpenChange={(open) => {
+        setIsPaymentDialogOpen(open);
+        if (!open) setTimeout(() => setEditingPayment(null), 200);
+      }}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Record Payment</DialogTitle>
+            <DialogTitle>{editingPayment ? 'Edit Payment' : 'Record Payment'}</DialogTitle>
             <DialogDescription>
-              Enter payment details. The invoice balance will update automatically.
+              {editingPayment ? 'Update payment details and provide a reason for the change.' : 'Enter payment details. The invoice balance will update automatically.'}
             </DialogDescription>
           </DialogHeader>
           <PaymentForm 
             invoiceId={invoice.id} 
             maxAmount={invoice.outstanding_amount} 
-            onSuccess={() => setIsPaymentDialogOpen(false)}
-            onCancel={() => setIsPaymentDialogOpen(false)}
+            payment={editingPayment || undefined}
+            onSuccess={() => {
+              setIsPaymentDialogOpen(false);
+              setTimeout(() => setEditingPayment(null), 200);
+            }}
+            onCancel={() => {
+              setIsPaymentDialogOpen(false);
+              setTimeout(() => setEditingPayment(null), 200);
+            }}
           />
         </DialogContent>
       </Dialog>

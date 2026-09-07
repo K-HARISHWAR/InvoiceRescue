@@ -12,6 +12,7 @@ export type Payment = {
   payment_reference: string | null;
   notes: string | null;
   recorded_by: string | null;
+  reconciliation_status: 'unmatched' | 'matched' | 'verified';
   created_at: string;
 };
 
@@ -57,11 +58,91 @@ export function usePayments(invoiceId: string | undefined) {
     },
   });
 
+  const editPayment = useMutation({
+    mutationFn: async ({ id, updates, reason }: { id: string; updates: Partial<Payment>; reason: string }) => {
+      if (!business || !invoiceId) throw new Error('Missing context');
+      
+      const { data: userResponse } = await supabase.auth.getUser();
+      const user = userResponse.user;
+      
+      if (!user) throw new Error('Not authenticated');
+
+      // Fetch before_data
+      const { data: beforeData, error: fetchError } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('id', id)
+        .single();
+        
+      if (fetchError || !beforeData) throw new Error('Failed to fetch existing payment for revision logging');
+
+      // Update the payment
+      const { data, error } = await supabase
+        .from('payments')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      // Get revision number
+      const { count } = await supabase
+        .from('payment_revisions')
+        .select('*', { count: 'exact', head: true })
+        .eq('payment_id', id);
+        
+      const revNum = (count || 0) + 1;
+      
+      // Insert revision
+      await supabase.from('payment_revisions').insert([{
+        business_id: business.id,
+        payment_id: id,
+        revision_number: revNum,
+        changed_by: user.id,
+        change_reason: reason,
+        before_data: beforeData,
+        after_data: data,
+        changed_fields: Object.keys(updates)
+      }]);
+      
+      // Calculate outstanding
+      await supabase.rpc('calculate_payment_state', { target_invoice_id: invoiceId });
+      
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: paymentKeys.invoice(invoiceId) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.detail(invoiceId) });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.list(business?.id) });
+    },
+  });
+
+  const checkDuplicatePayment = async (reference: string | null, amount: number, date: string) => {
+    if (!business) return false;
+    
+    let query = supabase
+      .from('payments')
+      .select('id')
+      .eq('business_id', business.id)
+      .eq('amount', amount)
+      .eq('paid_at', date);
+      
+    if (reference) {
+      query = query.eq('payment_reference', reference);
+    }
+    
+    const { data } = await query.limit(1);
+    return data && data.length > 0;
+  };
+
   return {
     payments: paymentsQuery.data ?? [],
     isLoading: paymentsQuery.isLoading,
     isError: paymentsQuery.isError,
     error: paymentsQuery.error,
     createPayment,
+    editPayment,
+    checkDuplicatePayment,
   };
 }
