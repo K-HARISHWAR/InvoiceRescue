@@ -17,53 +17,101 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-type FilterType = 'all' | 'open' | 'due_soon' | 'overdue' | 'promise_pending' | 'high_risk' | 'paid' | 'disputed';
+import { useSearchParams } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, Download, Upload } from 'lucide-react';
+import { downloadCSV } from '@/lib/csv';
+import { toast } from 'sonner';
+import InvoiceImportDialog from './components/InvoiceImportDialog';
+
+type FilterType = 'all' | 'open' | 'due_soon' | 'overdue' | 'promise_pending' | 'high_risk' | 'paid' | 'disputed' | 'overdue_30' | 'critical_large' | 'my_accounts' | 'promises_today';
 
 export default function InvoiceList() {
-  const { invoices, isLoading } = useInvoices();
-  const [search, setSearch] = useState('');
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showImport, setShowImport] = useState(false);
+  
+  const search = searchParams.get('search') || '';
+  const activeFilter = (searchParams.get('view') as FilterType) || 'all';
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const limit = 10;
 
-  const filteredInvoices = invoices.filter(inv => {
-    // Search
-    const searchLower = search.toLowerCase();
-    const matchesSearch = 
-      (inv.invoice_number?.toLowerCase() || '').includes(searchLower) ||
-      (inv.customer?.name?.toLowerCase() || '').includes(searchLower);
-    
-    if (!matchesSearch) return false;
-
-    // Filter tabs
-    switch (activeFilter) {
-      case 'open':
-        return inv.payment_status === 'open' || inv.payment_status === 'partial';
-      case 'due_soon':
-        return inv.collection_stage === 'due_soon';
-      case 'overdue':
-        return inv.collection_stage === 'overdue' || inv.collection_stage === 'escalated' || inv.collection_stage === 'recovery_ready';
-      case 'promise_pending':
-        return inv.collection_stage === 'promise_pending';
-      case 'high_risk':
-        return inv.risk_level === 'high' || inv.risk_level === 'critical';
-      case 'paid':
-        return inv.payment_status === 'paid';
-      case 'disputed':
-        return inv.payment_status === 'disputed';
-      case 'all':
-      default:
-        return true;
-    }
+  const { invoices, totalCount, isLoading, exportInvoices } = useInvoices({
+    view: activeFilter,
+    search,
+    page,
+    limit
   });
 
-  const tabs: { id: FilterType; label: string }[] = [
-    { id: 'all', label: 'All' },
+  const handleExport = async () => {
+    try {
+      const data = await exportInvoices({
+        view: activeFilter,
+        search,
+      });
+      if (!data || data.length === 0) {
+        toast.info("No records to export.");
+        return;
+      }
+      const columns = [
+        { key: 'invoice_number', label: 'Invoice Number' },
+        { key: 'customer_name', label: 'Customer' },
+        { key: 'invoice_date', label: 'Issue Date' },
+        { key: 'due_date', label: 'Due Date' },
+        { key: 'currency', label: 'Currency' },
+        { key: 'total_amount', label: 'Total Amount' },
+        { key: 'outstanding_amount', label: 'Outstanding Amount' },
+        { key: 'payment_status', label: 'Payment Status' },
+        { key: 'collection_stage', label: 'Stage' },
+        { key: 'risk_level', label: 'Risk' }
+      ];
+      
+      const mappedData = data.map((d: any) => ({
+        ...d,
+        customer_name: d.customer?.name || ''
+      }));
+      
+      downloadCSV(`Invoices_Export_${new Date().toISOString().split('T')[0]}`, mappedData, columns);
+      toast.success("Export successful.");
+    } catch (e: any) {
+      toast.error("Export failed: " + e.message);
+    }
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearchParams(prev => {
+      if (val) prev.set('search', val);
+      else prev.delete('search');
+      prev.set('page', '1');
+      return prev;
+    });
+  };
+
+  const handleFilterChange = (filter: FilterType) => {
+    setSearchParams(prev => {
+      prev.set('view', filter);
+      prev.set('page', '1');
+      return prev;
+    });
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setSearchParams(prev => {
+      prev.set('page', newPage.toString());
+      return prev;
+    });
+  };
+
+  const totalPages = Math.ceil(totalCount / limit);
+
+  const views: { id: FilterType; label: string; group?: string }[] = [
+    { id: 'all', label: 'All Invoices' },
     { id: 'open', label: 'Open' },
     { id: 'due_soon', label: 'Due Soon' },
     { id: 'overdue', label: 'Overdue' },
-    { id: 'promise_pending', label: 'Promise Pending' },
     { id: 'high_risk', label: 'High Risk' },
-    { id: 'paid', label: 'Paid' },
-    { id: 'disputed', label: 'Disputed' },
+    // Saved Views
+    { id: 'overdue_30', label: 'Overdue >30 Days', group: 'Saved Views' },
+    { id: 'critical_large', label: 'Critical >₹1L', group: 'Saved Views' },
+    { id: 'promises_today', label: 'Promises Due Today', group: 'Saved Views' },
   ];
 
   return (
@@ -72,40 +120,54 @@ export default function InvoiceList() {
         title="Invoices" 
         description="Manage your accounts receivable pipeline."
         actions={
-          <Link to="/app/invoices/new">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Invoice
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleExport}>
+              <Download className="mr-2 h-4 w-4" />
+              Export
             </Button>
-          </Link>
+            <Button variant="outline" onClick={() => setShowImport(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import CSV
+            </Button>
+            <Link to="/app/invoices/new">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Invoice
+              </Button>
+            </Link>
+          </div>
         }
       />
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
-        <div className="flex items-center space-x-2 bg-white p-2 rounded-lg border border-neutral-200 w-full sm:w-80">
+      <div className="flex flex-col space-y-4">
+        <div className="flex items-center space-x-2 bg-white p-2 rounded-lg border border-neutral-200 w-full md:w-96">
           <Search className="h-5 w-5 text-neutral-400 ml-2" />
           <Input 
             placeholder="Search invoices or customers..." 
             className="border-0 focus-visible:ring-0 shadow-none"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
           />
         </div>
         
-        <div className="flex bg-neutral-100 p-1 rounded-lg border border-neutral-200 overflow-x-auto w-full sm:w-auto">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveFilter(tab.id)}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md whitespace-nowrap transition-colors ${
-                activeFilter === tab.id 
-                  ? 'bg-white text-neutral-900 shadow-sm' 
-                  : 'text-neutral-500 hover:text-neutral-700'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="w-full overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-neutral-200 scrollbar-track-transparent">
+          <div className="flex gap-2 min-w-max">
+            {views.map(view => (
+              <button
+                key={view.id}
+                onClick={() => handleFilterChange(view.id)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md whitespace-nowrap transition-colors border ${
+                  activeFilter === view.id 
+                    ? 'bg-primary text-primary-foreground border-primary shadow-sm' 
+                    : view.group === 'Saved Views' 
+                      ? 'bg-muted/30 text-foreground border-border hover:bg-muted' 
+                      : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
+                }`}
+              >
+                {view.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -131,14 +193,14 @@ export default function InvoiceList() {
                     Loading invoices...
                   </TableCell>
                 </TableRow>
-              ) : filteredInvoices.length === 0 ? (
+              ) : invoices.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="h-24 text-center text-neutral-500">
                     No invoices match the current filters.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredInvoices.map((inv) => {
+                invoices.map((inv) => {
                   const formatMoney = (amount: number) => 
                     new Intl.NumberFormat('en-IN', { style: 'currency', currency: inv.currency }).format(amount);
                   
@@ -183,6 +245,41 @@ export default function InvoiceList() {
           </Table>
         </div>
       </div>
+
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          Showing {totalCount === 0 ? 0 : (page - 1) * limit + 1} to {Math.min(page * limit, totalCount)} of {totalCount} results
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page === 1}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+          </Button>
+          <div className="text-sm font-medium px-4">
+            Page {page} of {totalPages || 1}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page >= totalPages}
+          >
+            Next <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+      </div>
+
+      <InvoiceImportDialog 
+        open={showImport} 
+        onOpenChange={setShowImport}
+        onSuccess={() => {
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }

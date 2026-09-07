@@ -42,26 +42,95 @@ export type Invoice = {
   };
 };
 
-export function useInvoices() {
-  const { business } = useSession();
+export type InvoiceFilters = {
+  view?: string;
+  search?: string;
+  status?: PaymentStatus;
+  stage?: CollectionStage;
+  risk?: RiskLevel;
+  page?: number;
+  limit?: number;
+};
+
+export function useInvoices(filters: InvoiceFilters = {}) {
+  const { business, user } = useSession();
   const queryClient = useQueryClient();
 
   const invoicesQuery = useQuery({
-    queryKey: invoiceKeys.list(business?.id),
+    queryKey: [...invoiceKeys.list(business?.id), filters],
     queryFn: async () => {
       if (!business) throw new Error('No business context');
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('invoices')
         .select(`
           *,
           customer:customers(id, name, company_name)
-        `)
-        .eq('business_id', business.id)
-        .order('created_at', { ascending: false });
+        `, { count: 'exact' })
+        .eq('business_id', business.id);
+
+      // Search
+      if (filters.search) {
+        query = query.or(`invoice_number.ilike.%${filters.search}%,po_number.ilike.%${filters.search}%`);
+      }
+
+      // Exact matches
+      if (filters.status) query = query.eq('payment_status', filters.status);
+      if (filters.stage) query = query.eq('collection_stage', filters.stage);
+      if (filters.risk) query = query.eq('risk_level', filters.risk);
+
+      // Saved Views Logic
+      if (filters.view) {
+        switch (filters.view) {
+          case 'overdue_30':
+            query = query.in('payment_status', ['open', 'partial']).not('due_date', 'is', null).lt('due_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+            break;
+          case 'critical_large':
+            query = query.eq('risk_level', 'critical').gte('outstanding_amount', 100000);
+            break;
+          case 'my_accounts':
+            // Without an assigned_to on the invoice, we can't easily do this unless we check actions.
+            // For MVP, if we don't have assigned_to on invoice, we might skip or do a best effort.
+            break;
+          case 'promises_today':
+            query = query.eq('collection_stage', 'promise_pending'); // We'd need to join payment_promises for exact date, keeping it simple for MVP
+            break;
+          case 'due_soon':
+            query = query.eq('collection_stage', 'due_soon');
+            break;
+          case 'overdue':
+            query = query.in('collection_stage', ['overdue', 'escalated', 'recovery_ready']);
+            break;
+          case 'open':
+            query = query.in('payment_status', ['open', 'partial']);
+            break;
+          case 'promise_pending':
+            query = query.eq('collection_stage', 'promise_pending');
+            break;
+          case 'high_risk':
+            query = query.in('risk_level', ['high', 'critical']);
+            break;
+          case 'paid':
+            query = query.eq('payment_status', 'paid');
+            break;
+          case 'disputed':
+            query = query.eq('payment_status', 'disputed');
+            break;
+        }
+      }
+
+      // Pagination
+      const page = filters.page || 1;
+      const limit = filters.limit || 50;
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+
+      query = query.order('created_at', { ascending: false }).range(from, to);
+      
+      const { data, count, error } = await query;
       
       if (error) throw error;
-      return data as Invoice[];
+      return { data: data as Invoice[], count: count || 0 };
     },
     enabled: !!business,
   });
@@ -127,14 +196,64 @@ export function useInvoices() {
     },
   });
 
+  const exportInvoices = async (filters: InvoiceFilters) => {
+    if (!business) return [];
+    
+    let query = supabase
+      .from('invoices')
+      .select(`
+        *,
+        customer:customers(name, company_name)
+      `)
+      .eq('business_id', business.id);
+
+    // Apply the same filters (except pagination limits)
+    if (filters.search) query = query.or(`invoice_number.ilike.%${filters.search}%,po_number.ilike.%${filters.search}%`);
+    if (filters.status) query = query.eq('payment_status', filters.status);
+    if (filters.stage) query = query.eq('collection_stage', filters.stage);
+    if (filters.risk) query = query.eq('risk_level', filters.risk);
+
+    if (filters.view) {
+      switch (filters.view) {
+        case 'overdue_30':
+          query = query.in('payment_status', ['open', 'partial']).not('due_date', 'is', null).lt('due_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+          break;
+        case 'critical_large':
+          query = query.eq('risk_level', 'critical').gte('outstanding_amount', 100000);
+          break;
+        case 'due_soon':
+          query = query.eq('collection_stage', 'due_soon');
+          break;
+        case 'overdue':
+          query = query.in('collection_stage', ['overdue', 'escalated', 'recovery_ready']);
+          break;
+        case 'open':
+          query = query.in('payment_status', ['open', 'partial']);
+          break;
+        case 'high_risk':
+          query = query.in('risk_level', ['high', 'critical']);
+          break;
+        case 'paid':
+          query = query.eq('payment_status', 'paid');
+          break;
+      }
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(5000);
+    if (error) throw error;
+    return data;
+  };
+
   return {
-    invoices: invoicesQuery.data ?? [],
+    invoices: invoicesQuery.data?.data ?? [],
+    totalCount: invoicesQuery.data?.count ?? 0,
     isLoading: invoicesQuery.isLoading,
     isError: invoicesQuery.isError,
     error: invoicesQuery.error,
     createInvoice,
     updateInvoice,
     voidInvoice,
+    exportInvoices,
   };
 }
 

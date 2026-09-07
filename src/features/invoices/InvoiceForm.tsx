@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import InvoiceUpload from './components/InvoiceUpload';
+import InvoiceUpload, { type BatchExtractionResult } from './components/InvoiceUpload';
 import { type ExtractedInvoiceData, type DocumentDetails } from './types';
 import { type PaymentStatus, type CollectionStage } from '@/hooks/useInvoices';
 
@@ -51,7 +51,8 @@ export default function InvoiceForm() {
   const [pendingDocument, setPendingDocument] = useState<DocumentDetails | null>(null);
   const [extractionWarnings, setExtractionWarnings] = useState<string[]>([]);
   const [duplicateWarning, setDuplicateWarning] = useState(false);
-  const [pendingData, setPendingData] = useState<InvoiceFormValues | null>(null);
+  const [pendingDuplicateData, setPendingDuplicateData] = useState<InvoiceFormValues | null>(null);
+  const [reviewQueue, setReviewQueue] = useState<BatchExtractionResult[]>([]);
   
   const { business, user, entities, primaryEntity } = useSession();
   const { customers, isLoading: isLoadingCustomers } = useCustomers();
@@ -129,12 +130,30 @@ export default function InvoiceForm() {
     }
   }, [watchInvoiceDate, watchPaymentTerms, setValue]);
 
-  const handleExtractionComplete = (data: ExtractedInvoiceData | null, draftInvoiceId?: string, documentDetails?: DocumentDetails) => {
-    if (draftInvoiceId) setDraftId(draftInvoiceId);
+  const handleExtractionComplete = (results: BatchExtractionResult[]) => {
+    if (!results || results.length === 0) {
+      setMode('manual');
+      return;
+    }
+    setReviewQueue(results);
+    loadNextFromQueue(results);
+  };
+
+  const loadNextFromQueue = (queue: BatchExtractionResult[]) => {
+    if (queue.length === 0) {
+      toast.success("Batch processing complete!");
+      navigate('/app/invoices');
+      return;
+    }
+
+    const { data, documentDetails } = queue[0];
+    
     if (documentDetails) setPendingDocument(documentDetails);
     
-    setMode('manual');
-    if (!data) return; // if extraction failed, just switch to manual mode without populating
+    if (!data) {
+      setMode('manual');
+      return;
+    }
     
     // Auto-select customer if we can match the name
     let matchedCustomerId = '';
@@ -155,7 +174,7 @@ export default function InvoiceForm() {
       }
     }
 
-    reset({
+    const newValues = {
       customer_id: matchedCustomerId || '',
       entity_id: defaultEntity || '',
       invoice_number: data.invoice_number || '',
@@ -166,13 +185,25 @@ export default function InvoiceForm() {
       subtotal: data.subtotal || 0,
       tax_amount: data.tax_amount || 0,
       total_amount: data.total_amount || 0,
-    });
+    };
+
+    setMode('manual');
+    
+    // Defer reset to ensure form components are mounted
+    setTimeout(() => {
+      reset(newValues);
+    }, 50);
 
     if (data.warnings && data.warnings.length > 0) {
       setExtractionWarnings(data.warnings);
+    } else {
+      setExtractionWarnings([]);
     }
 
-    toast.success('Invoice data extracted. Please review the details.');
+    toast.success(queue.length > 1 
+      ? `Extracted invoice 1 of ${queue.length}. Please review.`
+      : 'Invoice data extracted. Please review the details.'
+    );
   };
 
   const executeSubmit = async (data: InvoiceFormValues) => {
@@ -206,22 +237,34 @@ export default function InvoiceForm() {
       } else {
         const result = await createInvoice.mutateAsync(invoiceRecord);
         resultId = result.id;
-      }
-
-      if (pendingDocument && business && user) {
-        await supabase.from('invoice_documents').insert([{
-          business_id: business.id,
-          invoice_id: resultId,
-          document_type: 'invoice',
-          uploaded_by: user.id,
-          ...pendingDocument
-        }]);
+        // Link document if uploaded via manual creation mode
+        if (pendingDocument) {
+          await supabase.from('invoice_documents').insert([{
+            business_id: business.id,
+            invoice_id: resultId,
+            document_type: 'invoice',
+            uploaded_by: user.id,
+            ...pendingDocument
+          }]);
+        }
       }
       
       toast.success('Invoice saved successfully');
-      setDuplicateWarning(false);
-      setPendingData(null);
-      navigate(`/app/invoices/${resultId}`);
+      
+      if (reviewQueue.length > 1) {
+        const remainingQueue = reviewQueue.slice(1);
+        setReviewQueue(remainingQueue);
+        toast.info(`Moving to next invoice (${remainingQueue.length} remaining)`);
+        
+        // Reset states for the next invoice
+        setDraftId(null);
+        setPendingDocument(null);
+        
+        loadNextFromQueue(remainingQueue);
+      } else {
+        setReviewQueue([]);
+        navigate(draftId ? `/app/invoices/${draftId}` : '/app/invoices');
+      }
     } catch (error) {
       toast.error('Failed to create invoice');
       console.error(error);
@@ -238,7 +281,7 @@ export default function InvoiceForm() {
       .limit(1);
 
     if (existing && existing.length > 0) {
-      setPendingData(data);
+      setPendingDuplicateData(data);
       setDuplicateWarning(true);
       return;
     }
@@ -261,7 +304,10 @@ export default function InvoiceForm() {
 
       <div className="flex bg-neutral-100 p-1 rounded-lg border border-neutral-200 w-full sm:w-64 mb-6">
         <button
-          onClick={() => setMode('upload')}
+          onClick={() => {
+            setMode('upload');
+            setReviewQueue([]); // Clear queue if manually switching back
+          }}
           className={`flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
             mode === 'upload' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'
           }`}
@@ -270,7 +316,10 @@ export default function InvoiceForm() {
           Upload
         </button>
         <button
-          onClick={() => setMode('manual')}
+          onClick={() => {
+            setMode('manual');
+            setReviewQueue([]);
+          }}
           className={`flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
             mode === 'manual' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'
           }`}
@@ -285,7 +334,15 @@ export default function InvoiceForm() {
           <InvoiceUpload onExtractionComplete={handleExtractionComplete} />
         </div>
       ) : (
-        <div className="bg-white shadow sm:rounded-lg border border-neutral-200 overflow-hidden">
+        <div className="bg-white shadow sm:rounded-lg border border-neutral-200 overflow-hidden relative">
+          {reviewQueue.length > 1 && (
+            <div className="bg-blue-50 border-b border-blue-100 px-4 py-3 text-sm text-blue-700 flex justify-between items-center">
+              <span className="font-medium">Batch Review Mode: {reviewQueue.length} invoices remaining</span>
+              <Button variant="ghost" size="sm" onClick={() => setReviewQueue([])} className="h-7 text-blue-600 hover:text-blue-800 hover:bg-blue-100">
+                Cancel Batch
+              </Button>
+            </div>
+          )}
           <div className="px-4 py-5 sm:p-6">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               
@@ -451,13 +508,13 @@ export default function InvoiceForm() {
           <DialogHeader>
             <DialogTitle className="text-amber-600">Duplicate Invoice Warning</DialogTitle>
             <DialogDescription>
-              An invoice with the number "{pendingData?.invoice_number}" already exists for this issuing entity. 
+              An invoice with the number "{pendingDuplicateData?.invoice_number}" already exists for this issuing entity. 
               Are you sure you want to create a duplicate?
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setDuplicateWarning(false)}>Cancel</Button>
-            <Button variant="default" onClick={() => pendingData && executeSubmit(pendingData)} disabled={createInvoice.isPending || updateInvoice.isPending}>
+            <Button variant="default" onClick={() => pendingDuplicateData && executeSubmit(pendingDuplicateData)} disabled={createInvoice.isPending || updateInvoice.isPending}>
               {(createInvoice.isPending || updateInvoice.isPending) ? 'Saving...' : 'Save Anyway'}
             </Button>
           </div>

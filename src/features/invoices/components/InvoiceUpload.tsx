@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { UploadCloud, File, X, Loader2 } from 'lucide-react';
+import { UploadCloud, File, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { supabase } from '@/lib/supabase/client';
@@ -8,21 +8,39 @@ import { useSession } from '@/hooks/useSession';
 import { Button } from '@/components/ui/button';
 import { type ExtractedInvoiceData, type DocumentDetails } from '../types';
 
+export type BatchExtractionResult = {
+  data: ExtractedInvoiceData | null;
+  documentDetails?: DocumentDetails;
+};
+
 interface InvoiceUploadProps {
-  invoiceId?: string; // If provided, attaches to this invoice.
+  invoiceId?: string;
   onUploadSuccess?: () => void;
-  onExtractionComplete?: (data: ExtractedInvoiceData | null, targetInvoiceId?: string, documentDetails?: DocumentDetails) => void;
+  onExtractionComplete?: (results: BatchExtractionResult[]) => void;
 }
+
+type UploadTask = {
+  id: string;
+  file: File;
+  status: 'pending' | 'uploading' | 'extracting' | 'success' | 'error';
+  error?: string;
+  data?: ExtractedInvoiceData | null;
+  documentDetails?: DocumentDetails;
+};
 
 export default function InvoiceUpload({ invoiceId, onUploadSuccess, onExtractionComplete }: InvoiceUploadProps) {
   const { business, user } = useSession();
-  const [file, setFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [tasks, setTasks] = useState<UploadTask[]>([]);
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
-      setFile(acceptedFiles[0]);
+      const newTasks = acceptedFiles.map(f => ({
+        id: crypto.randomUUID(),
+        file: f,
+        status: 'pending' as const
+      }));
+      setTasks(prev => [...prev, ...newTasks]);
     }
   }, []);
 
@@ -33,151 +51,190 @@ export default function InvoiceUpload({ invoiceId, onUploadSuccess, onExtraction
       'image/jpeg': ['.jpg', '.jpeg'],
       'image/png': ['.png']
     },
-    maxFiles: 1,
+    maxFiles: 20,
     maxSize: 10 * 1024 * 1024, // 10MB
   });
 
-  const uploadFile = async () => {
-    if (!file || !business || !user) return;
+  const updateTask = (id: string, updates: Partial<UploadTask>) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+  };
 
-    setIsUploading(true);
-    try {
-      let targetInvoiceId = invoiceId;
+  const processQueue = async () => {
+    if (!business || !user || isProcessingQueue) return;
+    setIsProcessingQueue(true);
 
-      // 1. Upload to Storage
-      // Path convention: {business_id}/{invoice_id_or_temp}/{uuid}-{filename}
-      const uuid = crypto.randomUUID();
-      const folderId = targetInvoiceId || `temp-${uuid}`;
-      const filePath = `${business.id}/${folderId}/${uuid}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    const pendingTasks = tasks.filter(t => t.status === 'pending');
+    
+    for (const task of pendingTasks) {
+      try {
+        updateTask(task.id, { status: 'uploading' });
+        let targetInvoiceId = invoiceId;
 
-      const { error: uploadError } = await supabase.storage
-        .from('invoice-documents')
-        .upload(filePath, file);
+        // 1. Upload to Storage
+        const folderId = targetInvoiceId || `temp-${task.id}`;
+        const filePath = `${business.id}/${folderId}/${task.id}-${task.file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
 
-      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+        const { error: uploadError } = await supabase.storage
+          .from('invoice-documents')
+          .upload(filePath, task.file);
 
-      // 2. Hash calculation
-      const buffer = await file.arrayBuffer();
-      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
 
-      const documentDetails = {
-        storage_path: filePath,
-        original_file_name: file.name,
-        mime_type: file.type,
-        size_bytes: file.size,
-        sha256: hashHex,
-      };
+        // 2. Hash calculation
+        const buffer = await task.file.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+        const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // 3. Create invoice_documents record ONLY if we have an invoice ID
-      if (targetInvoiceId) {
-        const { error: docError } = await supabase
-          .from('invoice_documents')
-          .insert([{
-            business_id: business.id,
-            invoice_id: targetInvoiceId,
-            document_type: 'invoice',
-            uploaded_by: user.id,
-            ...documentDetails
-          }]);
+        const documentDetails = {
+          storage_path: filePath,
+          original_file_name: task.file.name,
+          mime_type: task.file.type,
+          size_bytes: task.file.size,
+          sha256: hashHex,
+        };
 
-        if (docError) throw new Error(`Failed to link document: ${docError.message}`);
-      }
+        // 3. Link if we have invoice ID
+        if (targetInvoiceId) {
+          const { error: docError } = await supabase
+            .from('invoice_documents')
+            .insert([{
+              business_id: business.id,
+              invoice_id: targetInvoiceId,
+              document_type: 'invoice',
+              uploaded_by: user.id,
+              ...documentDetails
+            }]);
+          if (docError) throw new Error(`Failed to link: ${docError.message}`);
+        }
 
-      toast.success('Document uploaded successfully');
-      
-      if (onExtractionComplete) {
-        setIsProcessing(true);
-        try {
+        // 4. Extraction
+        if (onExtractionComplete && !targetInvoiceId) {
+          updateTask(task.id, { status: 'extracting', documentDetails });
+          
           const { data: parseResponse, error: parseError } = await supabase.functions.invoke('parse-invoice', {
-            body: { storage_path: filePath, mime_type: file.type }
+            body: { storage_path: filePath, mime_type: task.file.type }
           });
           
           if (parseError) throw parseError;
           if (!parseResponse?.success) throw new Error(parseResponse?.error?.message || 'Parsing failed');
 
-          onExtractionComplete(parseResponse.data, targetInvoiceId, documentDetails);
-        } catch (err: unknown) {
-          console.error('Extraction error:', err);
-          toast.error(err instanceof Error ? err.message : 'Failed to extract invoice data. You can enter details manually.');
-          // Still call onExtractionComplete with null data so the form switches to manual mode
-          onExtractionComplete(null, targetInvoiceId, documentDetails);
-        } finally {
-          setIsProcessing(false);
-          setFile(null);
+          updateTask(task.id, { status: 'success', data: parseResponse.data });
+          
+          // If this is a single file upload, call immediately
+          if (tasks.length === 1 && onExtractionComplete) {
+            onExtractionComplete([{
+              data: parseResponse.data,
+              documentDetails
+            }]);
+          }
+        } else {
+          updateTask(task.id, { status: 'success', documentDetails });
         }
-      } else {
-        setFile(null);
-        if (onUploadSuccess) onUploadSuccess();
-      }
 
-    } catch (error: unknown) {
-      console.error(error);
-      toast.error(error instanceof Error ? error.message : 'An unexpected error occurred during upload');
-    } finally {
-      setIsUploading(false);
+      } catch (err: any) {
+        updateTask(task.id, { status: 'error', error: err.message });
+      }
+    }
+    
+    setIsProcessingQueue(false);
+    
+    // If all tasks are done and success
+    const allFinished = tasks.every(t => t.status === 'success' || t.status === 'error');
+    if (onUploadSuccess && allFinished) {
+      onUploadSuccess();
+    }
+  };
+
+  const removeTask = (id: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+  const confirmBatch = () => {
+    const successfulTasks = tasks.filter(t => t.status === 'success' && t.data);
+    if (successfulTasks.length > 0 && onExtractionComplete) {
+      const batchItems = successfulTasks.map(t => ({
+        data: t.data || null,
+        documentDetails: t.documentDetails
+      }));
+      onExtractionComplete(batchItems);
+      // Remove all successful tasks from the list
+      successfulTasks.forEach(t => removeTask(t.id));
     }
   };
 
   return (
-    <div className="w-full">
-      {!file ? (
-        <div 
-          {...getRootProps()} 
-          className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition-colors ${
-            isDragActive ? 'border-blue-500 bg-blue-50' : 'border-neutral-300 hover:border-blue-400 hover:bg-neutral-50'
-          }`}
-        >
-          <input {...getInputProps()} />
-          <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-            <UploadCloud className="h-6 w-6 text-blue-600" />
-          </div>
-          <p className="text-sm font-medium text-neutral-900 mb-1">
-            Click to upload or drag and drop
-          </p>
-          <p className="text-xs text-neutral-500">
-            PDF, PNG, JPG (max 10MB)
-          </p>
+    <div className="w-full space-y-4">
+      <div 
+        {...getRootProps()} 
+        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+          isDragActive ? 'border-blue-500 bg-blue-50' : 'border-neutral-300 hover:border-blue-400 hover:bg-neutral-50'
+        }`}
+      >
+        <input {...getInputProps()} />
+        <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+          <UploadCloud className="h-6 w-6 text-blue-600" />
         </div>
-      ) : (
-        <div className="border rounded-lg p-4 bg-neutral-50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-white rounded shadow-sm border border-neutral-200">
-                <File className="h-6 w-6 text-blue-600" />
+        <p className="text-sm font-medium text-neutral-900 mb-1">
+          Click to upload or drag and drop (up to 20 files)
+        </p>
+        <p className="text-xs text-neutral-500">
+          PDF, PNG, JPG (max 10MB)
+        </p>
+      </div>
+
+      {tasks.length > 0 && (
+        <div className="border rounded-lg bg-neutral-50 divide-y overflow-hidden max-h-[300px] overflow-y-auto">
+          {tasks.map((task) => (
+            <div key={task.id} className="p-3 flex items-center justify-between">
+              <div className="flex items-center space-x-3 overflow-hidden">
+                <File className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                <div className="truncate">
+                  <p className="text-sm font-medium text-neutral-900 truncate">
+                    {task.file.name}
+                  </p>
+                  <p className="text-xs text-neutral-500">
+                    {(task.file.size / 1024 / 1024).toFixed(2)} MB
+                    {task.status === 'uploading' && ' • Uploading...'}
+                    {task.status === 'extracting' && ' • Extracting...'}
+                    {task.status === 'error' && <span className="text-red-500"> • {task.error}</span>}
+                    {task.status === 'success' && <span className="text-green-600"> • Ready</span>}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-neutral-900 truncate max-w-[200px] sm:max-w-[300px]">
-                  {file.name}
-                </p>
-                <p className="text-xs text-neutral-500">
-                  {(file.size / 1024 / 1024).toFixed(2)} MB
-                </p>
+              <div className="flex items-center space-x-2 pl-2">
+                {task.status === 'uploading' || task.status === 'extracting' ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
+                ) : task.status === 'success' ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                ) : task.status === 'error' ? (
+                  <AlertCircle className="h-5 w-5 text-red-500" />
+                ) : null}
+                
+                {task.status !== 'uploading' && task.status !== 'extracting' && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); removeTask(task.id); }}
+                    className="p-1 text-neutral-400 hover:text-neutral-600 rounded-full hover:bg-neutral-200"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
-            {!isUploading && (
-              <button 
-                onClick={() => setFile(null)}
-                className="p-1 text-neutral-400 hover:text-neutral-600 rounded-full hover:bg-neutral-200 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            )}
-          </div>
-          
-          <div className="mt-4 flex justify-end">
-            <Button onClick={uploadFile} disabled={isUploading || isProcessing} className="w-full sm:w-auto">
-              {isUploading || isProcessing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {isProcessing ? 'Extracting Data...' : 'Uploading...'}
-                </>
-              ) : (
-                'Confirm Upload'
-              )}
+          ))}
+        </div>
+      )}
+
+      {tasks.length > 0 && (
+        <div className="flex justify-end pt-2">
+          {tasks.some(t => t.status === 'pending') ? (
+            <Button onClick={processQueue} disabled={isProcessingQueue} className="w-full sm:w-auto">
+              {isProcessingQueue ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing Queue...</> : 'Process Queue'}
             </Button>
-          </div>
+          ) : tasks.some(t => t.status === 'success' && t.data) ? (
+            <Button onClick={confirmBatch} className="w-full sm:w-auto">
+              Review Parsed Document
+            </Button>
+          ) : null}
         </div>
       )}
     </div>

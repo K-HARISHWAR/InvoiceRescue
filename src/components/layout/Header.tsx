@@ -2,6 +2,7 @@ import { Search, Menu } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { NotificationsMenu } from "./NotificationsMenu"
+import GlobalSearch from "./GlobalSearch"
 
 export default function Header() {
   return (
@@ -11,12 +12,7 @@ export default function Header() {
           <Menu className="h-5 w-5" />
         </Button>
         <div className="hidden md:flex relative w-64 lg:w-96">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <input
-            type="search"
-            placeholder="Search invoices, customers..."
-            className="h-9 w-full rounded-md border border-input bg-transparent pl-9 pr-4 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          />
+          <GlobalSearch />
         </div>
       </div>
       
