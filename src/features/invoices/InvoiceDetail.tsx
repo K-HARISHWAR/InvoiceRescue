@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Building2, FileText, IndianRupee, MessageSquare, ListTodo, Plus, CheckCircle2, Inbox, Send, Bot } from 'lucide-react';
+import { ArrowLeft, Building2, FileText, IndianRupee, MessageSquare, ListTodo, Plus, CheckCircle2, Inbox, Send, Bot, AlertTriangle, Download, Link2 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 
 import { useInvoice, useInvoices } from '@/hooks/useInvoices';
@@ -10,6 +10,7 @@ import { useCommunications } from '@/hooks/useCommunications';
 import { useRecoveryPack } from '@/hooks/useRecoveryPack';
 import { RiskBadge } from '@/components/common/RiskBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { AIFeedback } from '@/components/common/AIFeedback';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -167,6 +168,7 @@ export default function InvoiceDetail() {
 
       <div className="mt-6">
         {activeTab === 'overview' && (
+          <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white rounded-lg border border-neutral-200 p-6">
               <h3 className="text-lg font-medium text-neutral-900 mb-4">Invoice Details</h3>
@@ -220,6 +222,51 @@ export default function InvoiceDetail() {
               </dl>
             </div>
           </div>
+          
+          {invoice.payment_promises && invoice.payment_promises.length > 0 && (
+            <div className="mt-6 bg-white rounded-lg border border-neutral-200 p-6">
+              <h3 className="text-lg font-medium text-neutral-900 mb-4 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-blue-500" />
+                Active Payment Promises
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {invoice.payment_promises.map(promise => (
+                  <div key={promise.id} className="bg-neutral-50 rounded-lg p-4 border border-neutral-100 flex flex-col">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="text-sm font-medium text-neutral-900">
+                        {format(new Date(promise.promised_date), 'dd MMM yyyy')}
+                      </div>
+                      {promise.amount && (
+                        <div className="text-sm font-bold text-neutral-900">
+                          {formatMoney(promise.amount)}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {promise.source_communication_id && (
+                      <div className="mt-2 text-xs text-neutral-600 bg-white p-2 rounded border border-neutral-100">
+                        <div className="font-medium text-neutral-700 flex items-center gap-1 mb-1">
+                          <Link2 size={12} /> Source Attribution
+                        </div>
+                        <div className="flex items-center justify-between mb-2">
+                           <span className="text-blue-600 cursor-pointer hover:underline" onClick={() => setActiveTab('communication')}>
+                             View communication
+                           </span>
+                           {promise.confidence_score !== null && (
+                             <span className={`px-1.5 py-0.5 rounded ${promise.confidence_score < 0.8 ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}>
+                               {promise.confidence_score < 0.8 ? 'Needs Review' : `Confidence: ${Math.round(promise.confidence_score * 100)}%`}
+                             </span>
+                           )}
+                        </div>
+                        <AIFeedback feature="promise_detection" entityType="communication" entityId={promise.source_communication_id} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          </>
         )}
 
         {activeTab === 'payments' && (

@@ -22,6 +22,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { AIFeedback } from '@/components/common/AIFeedback';
 import InvoiceUpload, { type BatchExtractionResult } from './components/InvoiceUpload';
 import { type ExtractedInvoiceData, type DocumentDetails } from './types';
 import { type PaymentStatus, type CollectionStage } from '@/hooks/useInvoices';
@@ -53,6 +54,7 @@ export default function InvoiceForm() {
   const [duplicateWarning, setDuplicateWarning] = useState(false);
   const [pendingDuplicateData, setPendingDuplicateData] = useState<InvoiceFormValues | null>(null);
   const [reviewQueue, setReviewQueue] = useState<BatchExtractionResult[]>([]);
+  const [currentAiRunId, setCurrentAiRunId] = useState<string | null>(null);
   
   const { business, user, entities, primaryEntity } = useSession();
   const { customers, isLoading: isLoadingCustomers } = useCustomers();
@@ -146,9 +148,10 @@ export default function InvoiceForm() {
       return;
     }
 
-    const { data, documentDetails } = queue[0];
+    const { data, documentDetails, ai_run_id } = queue[0];
     
     if (documentDetails) setPendingDocument(documentDetails);
+    setCurrentAiRunId(ai_run_id || null);
     
     if (!data) {
       setMode('manual');
@@ -259,6 +262,7 @@ export default function InvoiceForm() {
         // Reset states for the next invoice
         setDraftId(null);
         setPendingDocument(null);
+        setCurrentAiRunId(null);
         
         loadNextFromQueue(remainingQueue);
       } else {
@@ -353,14 +357,28 @@ export default function InvoiceForm() {
                       <AlertTriangle className="h-5 w-5 text-amber-400" />
                     </div>
                     <div className="ml-3">
-                      <p className="text-sm text-amber-700">
-                        The AI parser reported some warnings. Please verify:
+                      <p className="text-sm text-amber-700 font-medium">
+                        The AI parser reported some warnings or low confidence on certain fields. Please verify:
                       </p>
                       <ul className="list-disc pl-5 mt-1 text-sm text-amber-700">
                         {extractionWarnings.map((w, i) => <li key={i}>{w}</li>)}
                       </ul>
                     </div>
                   </div>
+                </div>
+              )}
+              
+              {currentAiRunId && (
+                <div className="bg-blue-50 border border-blue-100 rounded-md p-4 mb-6 flex justify-between items-center">
+                  <div className="text-sm text-blue-800">
+                    <span className="font-medium">AI Extraction</span> - Please verify the auto-filled fields below.
+                  </div>
+                  <AIFeedback 
+                    feature="invoice_extraction" 
+                    entityType="invoice" 
+                    entityId={currentAiRunId} // Since invoice isn't created yet, we must use a valid UUID like run ID
+                    aiRunId={currentAiRunId} 
+                  />
                 </div>
               )}
 

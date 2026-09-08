@@ -12,6 +12,7 @@ import { MoneyDisplay } from '@/lib/formatting/MoneyDisplay';
 import { RiskBadge } from '@/components/common/RiskBadge';
 import { format, addDays } from 'date-fns';
 import { Loader2, Send, Check, X, MessageSquare, Clock, UserCheck } from 'lucide-react';
+import { AIFeedback } from '@/components/common/AIFeedback';
 import { useSession } from '@/hooks/useSession';
 import { useTeam } from '@/hooks/useTeam';
 
@@ -157,6 +158,13 @@ export function ActionDetailDrawer({ action, isOpen, onClose }: ActionDetailDraw
                         className="w-full min-h-[200px] text-sm leading-relaxed text-foreground bg-transparent border-transparent hover:border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring p-2 -m-2 resize-y"
                       />
                     </div>
+                  </div>
+                  <div className="flex justify-end pt-2">
+                    <AIFeedback 
+                      feature="draft_generation" 
+                      entityType="collection_action" 
+                      entityId={action.id} 
+                    />
                   </div>
                 </div>
               )}

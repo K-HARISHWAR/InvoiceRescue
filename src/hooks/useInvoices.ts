@@ -40,6 +40,14 @@ export type Invoice = {
     name: string;
     company_name: string | null;
   };
+  payment_promises?: {
+    id: string;
+    promised_date: string;
+    amount: number | null;
+    status: string;
+    source_communication_id: string | null;
+    confidence_score: number | null;
+  }[];
 };
 
 export type InvoiceFilters = {
@@ -268,7 +276,8 @@ export function useInvoice(id: string | undefined) {
         .from('invoices')
         .select(`
           *,
-          customer:customers(*)
+          customer:customers(*),
+          payment_promises(*)
         `)
         .eq('id', id)
         .eq('business_id', business.id)

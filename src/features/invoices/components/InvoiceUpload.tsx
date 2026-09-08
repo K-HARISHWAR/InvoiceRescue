@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { UploadCloud, File, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { toast } from 'sonner';
 
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
@@ -11,6 +10,7 @@ import { type ExtractedInvoiceData, type DocumentDetails } from '../types';
 export type BatchExtractionResult = {
   data: ExtractedInvoiceData | null;
   documentDetails?: DocumentDetails;
+  ai_run_id?: string;
 };
 
 interface InvoiceUploadProps {
@@ -26,6 +26,7 @@ type UploadTask = {
   error?: string;
   data?: ExtractedInvoiceData | null;
   documentDetails?: DocumentDetails;
+  ai_run_id?: string;
 };
 
 export default function InvoiceUpload({ invoiceId, onUploadSuccess, onExtractionComplete }: InvoiceUploadProps) {
@@ -112,19 +113,23 @@ export default function InvoiceUpload({ invoiceId, onUploadSuccess, onExtraction
           updateTask(task.id, { status: 'extracting', documentDetails });
           
           const { data: parseResponse, error: parseError } = await supabase.functions.invoke('parse-invoice', {
-            body: { storage_path: filePath, mime_type: task.file.type }
+            body: { storage_path: filePath, mime_type: task.file.type, business_id: business.id, user_id: user?.id }
           });
           
           if (parseError) throw parseError;
           if (!parseResponse?.success) throw new Error(parseResponse?.error?.message || 'Parsing failed');
 
-          updateTask(task.id, { status: 'success', data: parseResponse.data });
+          console.log("PARSE RESPONSE:", parseResponse);
+          console.log("AI RUN ID:", parseResponse.ai_run_id);
+
+          updateTask(task.id, { status: 'success', data: parseResponse.data, ai_run_id: parseResponse.ai_run_id });
           
           // If this is a single file upload, call immediately
           if (tasks.length === 1 && onExtractionComplete) {
             onExtractionComplete([{
               data: parseResponse.data,
-              documentDetails
+              documentDetails,
+              ai_run_id: parseResponse.ai_run_id
             }]);
           }
         } else {
@@ -154,7 +159,8 @@ export default function InvoiceUpload({ invoiceId, onUploadSuccess, onExtraction
     if (successfulTasks.length > 0 && onExtractionComplete) {
       const batchItems = successfulTasks.map(t => ({
         data: t.data || null,
-        documentDetails: t.documentDetails
+        documentDetails: t.documentDetails,
+        ai_run_id: t.ai_run_id
       }));
       onExtractionComplete(batchItems);
       // Remove all successful tasks from the list
