@@ -26,6 +26,7 @@ import Settings from '@/features/settings/Settings'
 import EntitySettings from '@/features/settings/EntitySettings'
 import TeamManagement from '@/features/team/TeamManagement'
 import AcceptInvitation from '@/features/team/AcceptInvitation'
+import ActivityFeed from '@/features/activity/ActivityFeed'
 
 const queryClient = new QueryClient()
 
@@ -59,6 +60,7 @@ export default function App() {
                 <Route path="actions" element={<ActionCenter />} />
                 <Route path="recovery" element={<Recovery />} />
                 <Route path="team" element={<TeamManagement />} />
+                <Route path="activity" element={<ActivityFeed />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="settings/entities/:entityId" element={<EntitySettings />} />
               </Route>

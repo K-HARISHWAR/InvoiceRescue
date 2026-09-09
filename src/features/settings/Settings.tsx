@@ -6,6 +6,7 @@ import { Loader2, Save, Plus, Edit2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { EntityDialog } from './EntityDialog';
+import { NotificationPreferences } from './NotificationPreferences';
 import { Link } from 'react-router-dom';
 import type { BusinessEntity } from '@/contexts/SessionContext';
 
@@ -355,6 +356,8 @@ export default function Settings() {
           </div>
         </div>
       </div>
+
+      <NotificationPreferences />
 
       <div className="bg-white shadow sm:rounded-lg border border-red-200 overflow-hidden">
         <div className="px-4 py-5 sm:p-6">

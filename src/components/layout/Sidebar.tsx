@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom"
-import { LayoutDashboard, FileText, Users, Activity, ShieldAlert, Settings } from "lucide-react"
+import { LayoutDashboard, FileText, Users, Activity, ShieldAlert, Settings, History } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { BusinessSwitcher } from "./BusinessSwitcher"
 
@@ -10,6 +10,7 @@ const navItems = [
   { name: "Action Center", href: "/app/actions", icon: Activity },
   { name: "Recovery", href: "/app/recovery", icon: ShieldAlert },
   { name: "Team", href: "/app/team", icon: Users },
+  { name: "Activity", href: "/app/activity", icon: History },
   { name: "Settings", href: "/app/settings", icon: Settings },
 ]
 

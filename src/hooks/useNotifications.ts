@@ -14,6 +14,15 @@ export interface Notification {
   created_at: string;
 }
 
+export interface NotificationPreference {
+  id: string;
+  business_id: string;
+  user_id: string;
+  event_type: string;
+  in_app: boolean;
+  email: boolean;
+}
+
 export function useNotifications() {
   const { user } = useSession();
   const queryClient = useQueryClient();
@@ -72,5 +81,55 @@ export function useNotifications() {
     isLoading,
     markAsRead: markAsReadMutation.mutate,
     markAllAsRead: markAllAsReadMutation.mutate
+  };
+}
+
+export function useNotificationPreferences() {
+  const { user, business } = useSession();
+  const queryClient = useQueryClient();
+
+  const { data: preferences = [], isLoading } = useQuery({
+    queryKey: ['notification_preferences', user?.id, business?.id],
+    queryFn: async (): Promise<NotificationPreference[]> => {
+      if (!user?.id || !business?.id) return [];
+
+      const { data, error } = await supabase
+        .from('notification_preferences')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('business_id', business.id);
+
+      if (error) throw error;
+      return data as NotificationPreference[];
+    },
+    enabled: !!user?.id && !!business?.id,
+  });
+
+  const updatePreferenceMutation = useMutation({
+    mutationFn: async ({ event_type, in_app, email }: { event_type: string, in_app: boolean, email: boolean }) => {
+      if (!user?.id || !business?.id) return;
+      
+      const { error } = await supabase
+        .from('notification_preferences')
+        .upsert({
+          user_id: user.id,
+          business_id: business.id,
+          event_type,
+          in_app,
+          email,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id, event_type' });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notification_preferences', user?.id, business?.id] });
+    }
+  });
+
+  return {
+    preferences,
+    isLoading,
+    updatePreference: updatePreferenceMutation.mutateAsync
   };
 }

@@ -71,7 +71,8 @@ export default function PaymentForm({ invoiceId, maxAmount, onSuccess, onCancel,
         });
         toast.success('Payment updated successfully');
       } else {
-        await createPayment.mutateAsync(data);
+        const { reason, ...paymentData } = data;
+        await createPayment.mutateAsync(paymentData);
         toast.success('Payment recorded successfully');
       }
       
