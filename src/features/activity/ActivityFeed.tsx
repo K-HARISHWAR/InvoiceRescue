@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useActivityFeed, type AuditLog } from '@/hooks/useActivityFeed';
 import { format } from 'date-fns';
-import { FileText, Mail, DollarSign, Settings, UserPlus, AlertTriangle, Play, ShieldAlert, Activity } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FileText, Mail, DollarSign, UserPlus, ShieldAlert, Activity } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 export default function ActivityFeed() {
   const [userFilter, setUserFilter] = useState<string>('all');
@@ -78,9 +79,9 @@ export default function ActivityFeed() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-semibold text-neutral-900">Activity Feed</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Activity Feed</h1>
         <p className="mt-1 text-sm text-neutral-500">
           A complete audit log of events and actions across your organization.
         </p>

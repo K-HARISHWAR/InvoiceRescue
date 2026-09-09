@@ -68,7 +68,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <PageHeader 
         title="Dashboard" 
         description="Overview of your receivables and collection health."
@@ -83,7 +83,7 @@ export default function Dashboard() {
         <DailyBriefing />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-slide-up" style={{ animationDelay: '0.1s', animationFillMode: 'both' }}>
         <MetricCard 
           title="Total Outstanding" 
           value={<MoneyDisplay amount={metrics.outstanding} />} 
@@ -180,7 +180,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-soft">
+        <Card className="lg:col-span-3 shadow-soft hover:shadow-hover transition-all duration-300">
           <CardHeader>
             <CardTitle>Receivables Aging</CardTitle>
             <CardDescription>Outstanding balance by days past due.</CardDescription>
@@ -216,8 +216,8 @@ export default function Dashboard() {
       </div>
 
       {/* New Phase 11 Charts */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="lg:col-span-4 shadow-soft">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7 animate-slide-up" style={{ animationDelay: '0.3s', animationFillMode: 'both' }}>
+        <Card className="lg:col-span-4 shadow-soft hover:shadow-hover transition-all duration-300">
           <CardHeader>
             <CardTitle>Expected Cash Inflow</CardTitle>
             <CardDescription>Estimated incoming payments by week (Projected).</CardDescription>
@@ -253,7 +253,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-soft">
+        <Card className="lg:col-span-3 shadow-soft hover:shadow-hover transition-all duration-300">
           <CardHeader>
             <CardTitle>Customer Payment Behaviour</CardTitle>
             <CardDescription>Average days early or late by customer.</CardDescription>
@@ -279,8 +279,8 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="lg:col-span-4 shadow-soft">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7 animate-slide-up" style={{ animationDelay: '0.4s', animationFillMode: 'both' }}>
+        <Card className="lg:col-span-4 shadow-soft hover:shadow-hover transition-all duration-300">
           <CardHeader>
             <CardTitle>Collection Success</CardTitle>
             <CardDescription>Invoices paid after specific collection actions.</CardDescription>
@@ -316,7 +316,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
         
-        <Card className="lg:col-span-3 shadow-soft">
+        <Card className="lg:col-span-3 shadow-soft hover:shadow-hover transition-all duration-300">
           <CardHeader>
             <CardTitle>Collection Pipeline</CardTitle>
             <CardDescription>Number of invoices at each stage.</CardDescription>

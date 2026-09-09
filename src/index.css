@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 @theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
@@ -37,13 +39,16 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+
+  --shadow-soft: 0 4px 20px -2px rgba(0,0,0,0.05), 0 0 3px rgba(0,0,0,0.02);
+  --shadow-hover: 0 10px 40px -4px rgba(0,0,0,0.08), 0 0 4px rgba(0,0,0,0.02);
 }
 
 @layer base {
   :root {
     /* Backgrounds: light neutral, surfaces white */
-    --background: 210 20% 98%; /* #f8fafc slate-50 equivalent */
-    --foreground: 222.2 84% 4.9%; /* dark readable typography */
+    --background: 226 33% 98%;
+    --foreground: 222.2 84% 4.9%;
     
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
@@ -51,12 +56,12 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
     
-    /* Primary: Restrained Navy / Slate */
-    --primary: 222.2 47.4% 11.2%; 
+    /* Primary: Vibrant Indigo */
+    --primary: 243 75% 59%; 
     --primary-foreground: 210 40% 98%;
     
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 243 75% 96%;
+    --secondary-foreground: 243 75% 30%;
     
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
@@ -93,12 +98,40 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
   }
 }
 
 @layer utilities {
-  .shadow-soft {
-    box-shadow: 0 2px 10px rgba(0,0,0,0.02), 0 1px 3px rgba(0,0,0,0.03);
+  .glass {
+    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-soft;
+  }
+  .glass-dark {
+    @apply bg-slate-900/80 backdrop-blur-lg border border-white/10 shadow-xl;
+  }
+  
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+  }
+  .animate-slide-up {
+    animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .animate-scale-in {
+    animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
   }
 }

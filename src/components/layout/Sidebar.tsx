@@ -16,8 +16,8 @@ const navItems = [
 
 export default function Sidebar() {
   return (
-    <aside className="hidden md:flex w-64 flex-col bg-card border-r border-border">
-      <div className="h-16 flex items-center px-6 border-b border-border">
+    <aside className="hidden md:flex w-64 flex-col glass border-r border-white/20 z-10">
+      <div className="h-16 flex items-center px-6 border-b border-white/20">
         <span className="text-xl font-bold tracking-tight text-primary">InvoiceRescue</span>
       </div>
       
@@ -28,10 +28,10 @@ export default function Sidebar() {
             to={item.href}
             className={({ isActive }) =>
               cn(
-                "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-all duration-200",
                 isActive 
-                  ? "bg-primary text-primary-foreground" 
-                  : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+                  ? "bg-primary text-primary-foreground shadow-soft" 
+                  : "text-muted-foreground hover:bg-white/50 hover:text-foreground hover:shadow-soft"
               )
             }
           >
@@ -41,7 +41,7 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-white/20">
         <BusinessSwitcher />
       </div>
     </aside>
