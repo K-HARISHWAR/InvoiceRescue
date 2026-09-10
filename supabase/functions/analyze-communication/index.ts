@@ -86,6 +86,12 @@ Extract strict JSON (no markdown, no backticks) with this schema:
   }
 }
 
+Important Rules:
+1. "We'll TRY to pay" is NOT a high-confidence promise. Set confidence below 0.6 if language is non-committal ("try", "maybe", "hopefully").
+2. "We paid" or "Payment was sent" is a "payment_confirmation", NOT a "payment_promise". Do NOT set promise.detected = true for past payments.
+3. "Your invoice amount is incorrect" or "Send the revised invoice" is a "dispute".
+4. "Payment should be released Friday" is a likely promise but requires review; set confidence around 0.8.
+
 Important Context:
 Email Date: ${comm.sent_at}
 Business Timezone: ${comm.businesses.timezone || 'UTC'}
