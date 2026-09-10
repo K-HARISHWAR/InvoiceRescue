@@ -22,12 +22,39 @@ serve(async (req) => {
     // Use service role key to bypass RLS for system cron job
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+    const startTime = performance.now()
+    
+    // Start job logging
+    const { data: jobId, error: startError } = await supabase.rpc('start_job_run', {
+      p_job_name: 'daily-collections-cron'
+    })
+    if (startError) console.error("Failed to start job log:", startError)
+
     // Call the RPC that handles all the complex logic transactionally
-    const { error } = await supabase.rpc('run_daily_collections_workflow')
+    const { data: result, error } = await supabase.rpc('run_daily_collections_workflow')
+
+    const duration_ms = Math.round(performance.now() - startTime)
 
     if (error) {
-      console.error('Failed to run daily collections workflow:', error)
+      console.error(JSON.stringify({ event: 'daily-collections-failed', duration_ms, error: error.message }))
+      if (jobId) {
+        await supabase.rpc('finish_job_run', {
+          p_job_id: jobId,
+          p_status: 'failed',
+          p_error_summary: error.message
+        })
+      }
       throw error
+    }
+
+    console.log(JSON.stringify({ event: 'daily-collections-success', duration_ms, processed: result || 0 }))
+    
+    if (jobId) {
+      await supabase.rpc('finish_job_run', {
+        p_job_id: jobId,
+        p_status: 'completed',
+        p_processed_count: typeof result === 'number' ? result : 0
+      })
     }
 
     return new Response(

@@ -44,6 +44,14 @@ serve(async (req: Request) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+  
+  const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+  const anonClient = createClient(supabaseUrl, supabaseAnonKey);
+  let jobId: string | null = null;
+
   try {
     const { business_id } = await req.json();
     if (!business_id) throw new Error("Missing business_id");
@@ -51,16 +59,9 @@ serve(async (req: Request) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) throw new Error('Missing Authorization header');
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    
-    const anonClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '');
-
     const jwt = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await anonClient.auth.getUser(jwt);
     if (userError || !user) throw new Error(`Unauthorized: ${userError?.message || 'No user found'}`);
-
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
 
     const rateLimitRes = await adminClient.rpc('check_rate_limit', {
       p_identifier: business_id,
@@ -90,6 +91,14 @@ serve(async (req: Request) => {
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID')?.trim().replace(/^["']|["']$/g, '')!;
     const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')?.trim().replace(/^["']|["']$/g, '')!;
     const tokenEncryptionKey = Deno.env.get('TOKEN_ENCRYPTION_KEY')?.trim().replace(/^["']|["']$/g, '')!;
+
+    const startTime = performance.now();
+    try {
+      const { data: id } = await adminClient.rpc('start_job_run', { p_job_name: 'gmail-sync', p_business_id: business_id });
+      jobId = id;
+    } catch (e) {
+      console.error("Failed to start job run log", e);
+    }
 
     const accessToken = await getValidAccessToken(adminClient, business_id, tokenEncryptionKey, clientId, clientSecret);
 
@@ -194,11 +203,38 @@ serve(async (req: Request) => {
       .update({ last_synced_at: new Date().toISOString() })
       .eq('business_id', business_id);
 
+    const duration_ms = Math.round(performance.now() - startTime);
+    console.log(JSON.stringify({ event: 'gmail-sync-success', business_id, duration_ms, synced: syncedCount }));
+
+    if (jobId) {
+      try {
+        await adminClient.rpc('finish_job_run', {
+          p_job_id: jobId,
+          p_status: 'completed',
+          p_processed_count: syncedCount
+        });
+      } catch (err) {
+        console.error("Crash during success finish_job_run:", err);
+      }
+    }
+
     return new Response(JSON.stringify({ success: true, synced: syncedCount }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error: any) {
+    if (jobId) {
+      try {
+        const { error: finishError } = await adminClient.rpc('finish_job_run', {
+          p_job_id: jobId,
+          p_status: 'failed',
+          p_processed_count: 0
+        });
+        if (finishError) console.error("Failed to update finish_job_run:", finishError);
+      } catch (err) {
+        console.error("Crash during finish_job_run:", err);
+      }
+    }
     const errorMsg = error instanceof Error ? error.message : String(error);
     const fullError = error instanceof Error ? error.stack : String(error);
     console.error("Error in gmail-sync:", fullError);

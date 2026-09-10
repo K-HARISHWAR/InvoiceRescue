@@ -66,7 +66,6 @@ export default function Dashboard() {
     }
     return null;
   };
-
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader 

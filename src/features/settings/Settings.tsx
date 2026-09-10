@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader2, Save, Plus, Edit2 } from 'lucide-react';
+import { Loader2, Save, Plus, Edit2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { EntityDialog } from './EntityDialog';
 import { NotificationPreferences } from './NotificationPreferences';
 import { SecuritySettings } from './SecuritySettings';
+import { SystemHealth } from './SystemHealth';
 import { Link } from 'react-router-dom';
 import type { BusinessEntity } from '@/contexts/SessionContext';
 
@@ -263,6 +264,39 @@ export default function Settings() {
           <div className="mt-2 max-w-xl text-sm text-neutral-500">
             <p>Connect third-party services to enhance InvoiceRescue.</p>
           </div>
+
+          {gmailConnection && (gmailConnection.status === 'expired' || gmailConnection.status === 'error') && (
+            <div className="mt-4 p-4 rounded-md bg-amber-50 border border-amber-200 flex items-start">
+              <div className="flex-shrink-0">
+                <AlertCircle className="h-5 w-5 text-amber-400" aria-hidden="true" />
+              </div>
+              <div className="ml-3 flex-1 md:flex md:justify-between">
+                <p className="text-sm text-amber-800">
+                  Gmail connection requires attention.
+                </p>
+                <p className="mt-2 text-sm md:mt-0 md:ml-6">
+                  <button
+                    onClick={async () => {
+                      setIsLoading(true);
+                      try {
+                        const { data, error } = await supabase.functions.invoke('gmail-oauth-start', {
+                          body: { business_id: business?.id }
+                        });
+                        if (error) throw error;
+                        window.location.href = data.url;
+                      } catch (e: any) {
+                        toast.error(e.message || 'Error starting Gmail connection');
+                        setIsLoading(false);
+                      }
+                    }}
+                    className="whitespace-nowrap font-medium text-amber-800 hover:text-amber-700"
+                  >
+                    [Reconnect]
+                  </button>
+                </p>
+              </div>
+            </div>
+          )}
           
           <div className="mt-6 border-t border-neutral-100 pt-6">
             <div className="flex items-center justify-between">
@@ -419,6 +453,10 @@ export default function Settings() {
       <div className="pt-6 border-t border-neutral-200 mt-8 mb-8">
         <h2 className="text-xl font-bold text-neutral-900 mb-6">Security & Account</h2>
         <SecuritySettings />
+      </div>
+
+      <div className="pt-6 border-t border-neutral-200 mt-8 mb-8">
+        <SystemHealth />
       </div>
 
     </div>
