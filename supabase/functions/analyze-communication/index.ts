@@ -19,12 +19,27 @@ serve(async (req: Request) => {
       throw new Error("Missing communication_id");
     }
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    const rateLimitRes = await supabaseAdmin.rpc('check_rate_limit', {
+      p_identifier: communication_id,
+      p_action: 'analyze-communication',
+      p_max_requests: 10,
+      p_window_seconds: 60
+    });
+    
+    if (rateLimitRes.data === false) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: { code: "RATE_LIMIT_EXCEEDED", message: "Too many requests. Please try again later." }
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 });
+    }
+
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) throw new Error('Missing Authorization header');
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    
     // We use service key for db updates, but verify user first
     const anonClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '');
 

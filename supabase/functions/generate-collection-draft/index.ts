@@ -21,6 +21,25 @@ serve(async (req: Request) => {
       throw new Error("Missing action_id");
     }
 
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const rateLimitRes = await supabaseAdmin.rpc('check_rate_limit', {
+      p_identifier: action_id,
+      p_action: 'generate-draft',
+      p_max_requests: 10,
+      p_window_seconds: 60
+    });
+    
+    if (rateLimitRes.data === false) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: { code: "RATE_LIMIT_EXCEEDED", message: "Too many requests. Please try again later." }
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 });
+    }
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',

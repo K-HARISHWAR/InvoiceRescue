@@ -24,6 +24,21 @@ serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    const rateLimitRes = await adminClient.rpc('check_rate_limit', {
+      p_identifier: invoice_id,
+      p_action: 'generate-recovery-data',
+      p_max_requests: 5,
+      p_window_seconds: 60
+    });
+    
+    if (rateLimitRes.data === false) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: { code: "RATE_LIMIT_EXCEEDED", message: "Too many requests. Please try again later." }
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 });
+    }
     
     // Verify user
     const anonClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '');
@@ -31,7 +46,7 @@ serve(async (req: Request) => {
     const { data: { user }, error: userError } = await anonClient.auth.getUser(jwt);
     if (userError || !user) throw new Error(`Unauthorized: ${userError?.message || 'No user found'}`);
 
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+
 
     // Fetch invoice context
     const { data: invoice, error: invoiceError } = await adminClient

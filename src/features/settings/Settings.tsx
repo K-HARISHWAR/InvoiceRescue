@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 
 import { EntityDialog } from './EntityDialog';
 import { NotificationPreferences } from './NotificationPreferences';
+import { SecuritySettings } from './SecuritySettings';
 import { Link } from 'react-router-dom';
 import type { BusinessEntity } from '@/contexts/SessionContext';
 
@@ -415,6 +416,11 @@ export default function Settings() {
         onOpenChange={setShowEntityDialog}
         entity={editingEntity}
       />
+      <div className="pt-6 border-t border-neutral-200 mt-8 mb-8">
+        <h2 className="text-xl font-bold text-neutral-900 mb-6">Security & Account</h2>
+        <SecuritySettings />
+      </div>
+
     </div>
   );
 }

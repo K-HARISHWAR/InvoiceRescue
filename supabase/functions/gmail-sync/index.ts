@@ -62,6 +62,20 @@ serve(async (req: Request) => {
 
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
 
+    const rateLimitRes = await adminClient.rpc('check_rate_limit', {
+      p_identifier: business_id,
+      p_action: 'gmail-sync',
+      p_max_requests: 15,
+      p_window_seconds: 60
+    });
+    
+    if (rateLimitRes.data === false) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: { code: "RATE_LIMIT_EXCEEDED", message: "Too many requests. Please try again later." }
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 });
+    }
+
     // Verify user belongs to business
     const { data: member, error: memberError } = await adminClient
       .from('business_members')
