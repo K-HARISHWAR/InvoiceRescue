@@ -16,6 +16,7 @@ import {
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts'
 import { Link } from "react-router-dom"
 import { DailyBriefing } from "@/components/dashboard/DailyBriefing"
+import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist"
 
 export default function Dashboard() {
   const { data: metricsData, isLoading: isMetricsLoading } = useDashboardMetrics();
@@ -78,6 +79,8 @@ export default function Dashboard() {
         }
       />
 
+      <OnboardingChecklist />
+
       <div className="grid gap-6">
         <DailyBriefing />
       </div>
@@ -96,9 +99,13 @@ export default function Dashboard() {
           loading={isMetricsLoading}
         />
         <MetricCard 
-          title="At Risk" 
+          title={
+            <div className="flex items-center gap-1.5 cursor-help" title="Measures collection risk based on overdue age, missed promises and payment history.">
+              At Risk <span className="text-[10px] border border-muted-foreground/30 text-muted-foreground rounded-full w-4 h-4 inline-flex items-center justify-center font-bold">i</span>
+            </div>
+          }
           value={<MoneyDisplay amount={metrics.atRisk} />} 
-          icon={<ShieldAlert className="text-orange-500" />}
+          icon={<ShieldAlert className="text-amber-500" />}
           loading={isMetricsLoading}
         />
         <MetricCard 

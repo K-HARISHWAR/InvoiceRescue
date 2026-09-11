@@ -183,9 +183,13 @@ export default function InvoiceUpload({ invoiceId, onUploadSuccess, onExtraction
         <p className="text-sm font-medium text-neutral-900 mb-1">
           Click to upload or drag and drop (up to 20 files)
         </p>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-neutral-500 mb-4">
           PDF, PNG, JPG (max 10MB)
         </p>
+        <div className="bg-primary/5 p-3 rounded-md text-xs text-primary/80 max-w-sm mx-auto text-left flex items-start space-x-2">
+          <div className="mt-0.5 font-bold">ⓘ</div>
+          <p><strong>Upload your invoice.</strong> InvoiceRescue will securely extract the details using AI. You will review everything before it is saved.</p>
+        </div>
       </div>
 
       {tasks.length > 0 && (
