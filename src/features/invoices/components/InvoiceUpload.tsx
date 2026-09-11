@@ -119,9 +119,6 @@ export default function InvoiceUpload({ invoiceId, onUploadSuccess, onExtraction
           if (parseError) throw parseError;
           if (!parseResponse?.success) throw new Error(parseResponse?.error?.message || 'Parsing failed');
 
-          console.log("PARSE RESPONSE:", parseResponse);
-          console.log("AI RUN ID:", parseResponse.ai_run_id);
-
           updateTask(task.id, { status: 'success', data: parseResponse.data, ai_run_id: parseResponse.ai_run_id });
           
           // If this is a single file upload, call immediately
