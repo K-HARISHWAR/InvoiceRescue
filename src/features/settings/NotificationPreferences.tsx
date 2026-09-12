@@ -1,7 +1,5 @@
-import React from 'react';
 import { useNotificationPreferences } from '@/hooks/useNotifications';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 

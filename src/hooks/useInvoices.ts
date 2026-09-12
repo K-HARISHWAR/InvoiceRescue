@@ -61,7 +61,7 @@ export type InvoiceFilters = {
 };
 
 export function useInvoices(filters: InvoiceFilters = {}) {
-  const { business, user } = useSession();
+  const { business } = useSession();
   const queryClient = useQueryClient();
 
   const invoicesQuery = useQuery({

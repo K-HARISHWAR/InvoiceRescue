@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
-import { UploadCloud, CheckCircle2, AlertTriangle, AlertCircle, X, ChevronRight, Check } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertTriangle, X, ChevronRight, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,7 @@ import { useSession } from '@/hooks/useSession';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
-import { invoiceKeys, paymentKeys } from '@/lib/queryKeys';
+import { invoiceKeys } from '@/lib/queryKeys';
 
 type ImportStep = 'upload' | 'map' | 'preview' | 'importing';
 
@@ -33,7 +33,6 @@ export default function PaymentImportDialog({ open, onOpenChange, onSuccess }: {
   const { business } = useSession();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<ImportStep>('upload');
-  const [file, setFile] = useState<File | null>(null);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvData, setCsvData] = useState<any[]>([]);
   
@@ -47,7 +46,6 @@ export default function PaymentImportDialog({ open, onOpenChange, onSuccess }: {
     if (!open) {
       setTimeout(() => {
         setStep('upload');
-        setFile(null);
         setCsvHeaders([]);
         setCsvData([]);
         setMapping({});
@@ -62,7 +60,6 @@ export default function PaymentImportDialog({ open, onOpenChange, onSuccess }: {
     maxFiles: 1,
     onDrop: (acceptedFiles) => {
       const f = acceptedFiles[0];
-      setFile(f);
       Papa.parse(f, {
         header: true,
         skipEmptyLines: true,

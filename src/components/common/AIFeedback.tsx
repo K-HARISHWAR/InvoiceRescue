@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';

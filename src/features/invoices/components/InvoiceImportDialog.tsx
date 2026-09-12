@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
-import { UploadCloud, CheckCircle2, AlertCircle, X, ChevronRight } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertCircle, ChevronRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/hooks/useSession';
@@ -24,7 +24,7 @@ const EXPECTED_COLUMNS = [
 export default function InvoiceImportDialog({ open, onOpenChange, onSuccess }: { open: boolean, onOpenChange: (open: boolean) => void, onSuccess: () => void }) {
   const { business } = useSession();
   const [step, setStep] = useState<ImportStep>('upload');
-  const [file, setFile] = useState<File | null>(null);
+// file state removed
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvData, setCsvData] = useState<any[]>([]);
   
@@ -37,7 +37,6 @@ export default function InvoiceImportDialog({ open, onOpenChange, onSuccess }: {
     maxFiles: 1,
     onDrop: (acceptedFiles) => {
       const f = acceptedFiles[0];
-      setFile(f);
       Papa.parse(f, {
         header: true,
         skipEmptyLines: true,
@@ -210,7 +209,6 @@ export default function InvoiceImportDialog({ open, onOpenChange, onSuccess }: {
 
   const handleClose = () => {
     setStep('upload');
-    setFile(null);
     setMapping({});
     setCsvHeaders([]);
     onOpenChange(false);

@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { AIFeedback } from '@/components/common/AIFeedback';
 import InvoiceUpload, { type BatchExtractionResult } from './components/InvoiceUpload';
-import { type ExtractedInvoiceData, type DocumentDetails } from './types';
+import { type DocumentDetails } from './types';
 import { type PaymentStatus, type CollectionStage } from '@/hooks/useInvoices';
 
 const invoiceSchema = z.object({
@@ -210,6 +210,7 @@ export default function InvoiceForm() {
   };
 
   const executeSubmit = async (data: InvoiceFormValues) => {
+    if (!business || !user) return;
     try {
       // Determine final due date logic (prefer explicit over calculated if provided, though we auto-calc above anyway)
       let finalDueDate = data.due_date;
@@ -276,6 +277,8 @@ export default function InvoiceForm() {
   };
 
   const onSubmit = async (data: z.infer<typeof invoiceSchema>) => {
+    if (!business || !user) return;
+
     // Check for duplicate invoice number
     const { data: existing } = await supabase
       .from('invoices')

@@ -3,7 +3,7 @@ import { useActivityFeed, type AuditLog } from '@/hooks/useActivityFeed';
 import { format } from 'date-fns';
 import { FileText, Mail, DollarSign, UserPlus, ShieldAlert, Activity } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+// removed avatar
 
 export default function ActivityFeed() {
   const [userFilter, setUserFilter] = useState<string>('all');
@@ -89,7 +89,7 @@ export default function ActivityFeed() {
 
       <div className="flex gap-4 mb-6">
         <div className="w-48">
-          <Select value={userFilter} onValueChange={setUserFilter}>
+          <Select value={userFilter} onValueChange={(v) => v && setUserFilter(v)}>
             <SelectTrigger>
               <span className="flex-1 text-left text-neutral-700">
                 {userFilter === 'all' ? 'All Users' : getUserLabel(userFilter)}
@@ -103,7 +103,7 @@ export default function ActivityFeed() {
           </Select>
         </div>
         <div className="w-48">
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <Select value={typeFilter} onValueChange={(v) => v && setTypeFilter(v)}>
             <SelectTrigger>
               <span className="flex-1 text-left text-neutral-700">
                 {typeFilter === 'all' ? 'All Actions' : getTypeLabel(typeFilter)}

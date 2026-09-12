@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Building2, FileText, IndianRupee, MessageSquare, ListTodo, Plus, CheckCircle2, Inbox, Send, Bot, AlertTriangle, Download, Link2 } from 'lucide-react';
+import { ArrowLeft, Building2, FileText, IndianRupee, MessageSquare, ListTodo, Plus, CheckCircle2, Inbox, Send, Bot, Link2 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 
 import { useInvoice, useInvoices } from '@/hooks/useInvoices';
